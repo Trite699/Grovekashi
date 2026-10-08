@@ -21,8 +21,8 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QFile>
-#include <QMap>
 #include <QHash>
+#include <QMap>
 #include <QSettings>
 #include <QStack>
 #include <QString>
