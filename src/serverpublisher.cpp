@@ -55,12 +55,6 @@ void ServerPublisher::publishServer()
         return;
     }
 
-    if (serverlists.isValid()) {
-        QNetworkRequest request(serverlist);
-        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-    }
-
     QJsonObject serverinfo;
     if (!ConfigManager::serverDomainName().trimmed().isEmpty()) {
         serverinfo["ip"] = ConfigManager::serverDomainName();
@@ -83,6 +77,8 @@ void ServerPublisher::publishServer()
         }
         QNetworkRequest request(serverlist);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        // Apply the HTTP2 setting here where the request is actually being sent
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
         m_manager->post(request, payload);
     }
 }
