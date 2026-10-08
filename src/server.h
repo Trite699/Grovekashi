@@ -43,6 +43,7 @@ class ConfigManager;
 class DBManager;
 class Discord;
 class MusicManager;
+class CdnMusicFetcher;
 class ULogger;
 
 /**
@@ -459,6 +460,11 @@ class Server : public QObject
      * @brief Handles all musiclists.
      */
     MusicManager *music_manager;
+
+    /**
+     * @brief Scans the CDNs in music_cdns.txt for songs and keeps the music cache up to date.
+     */
+    CdnMusicFetcher *m_cdn_music_fetcher;
 
     /**
      * @brief The port through which the server will accept WebSocket connections.
