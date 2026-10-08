@@ -316,19 +316,35 @@ void Server::clientConnected()
     AOClient *client = new AOClient(this, l_socket, this, user_id, music_manager);
     m_clients_ids.insert(user_id, client);
 
-    int multiclient_count = 1;
     bool is_at_multiclient_limit = false;
     client->calculateIpid();
     recordJoin(client->getIpid());
     auto ban = db_manager->isIPBanned(client->getIpid());
     bool is_banned = ban.first;
+
+    // m_clients is in connection order, so the first matches are the oldest connections.
+    QVector<AOClient *> l_same_ip_clients;
     for (AOClient *joined_client : qAsConst(m_clients)) {
         if (client->m_remote_ip.isEqual(joined_client->m_remote_ip))
-            multiclient_count++;
+            l_same_ip_clients.append(joined_client);
     }
 
-    if (multiclient_count > ConfigManager::multiClientLimit() && !client->m_remote_ip.isLoopback())
-        is_at_multiclient_limit = true;
+    // Instead of rejecting the new connection when the limit is reached, the oldest
+    // connection(s) from the same IP are kicked once the new one has passed all checks.
+    QVector<AOClient *> l_clients_to_kick;
+    if (!client->m_remote_ip.isLoopback()) {
+        const int l_limit = ConfigManager::multiClientLimit();
+        if (l_limit < 1) {
+            // A limit below 1 allows no connections at all, so there is nothing to kick in favour of.
+            is_at_multiclient_limit = true;
+        }
+        else {
+            const int l_excess = l_same_ip_clients.size() + 1 - l_limit;
+            for (int i = 0; i < l_excess; i++) {
+                l_clients_to_kick.append(l_same_ip_clients.at(i));
+            }
+        }
+    }
 
     if (is_banned) {
         QString ban_duration;
@@ -361,6 +377,15 @@ void Server::clientConnected()
         l_socket->close(QWebSocketProtocol::CloseCodeNormal);
         markIDFree(user_id);
         return;
+    }
+
+    // The new client is accepted, so make room by kicking the oldest connections from this IP.
+    for (AOClient *l_old_client : qAsConst(l_clients_to_kick)) {
+        l_old_client->sendPacket("KK", {"Kicked: too many connections from your IP. Your oldest connection was closed."});
+        // Drop it from the list right away so a quick follow-up connection doesn't count it again.
+        // The disconnect handler still runs for it and removeAll() is harmless the second time.
+        m_clients.removeAll(l_old_client);
+        l_old_client->m_socket->close();
     }
 
     m_clients.append(client);
