@@ -49,28 +49,35 @@ void ServerPublisher::publishServer()
         return;
     }
 
-    QUrl serverlist(ConfigManager::serverlistURL());
-    if (serverlist.isValid()) {
+    const QList<QUrl> serverlists = ConfigManager::serverlistURLs();
+    if (serverlists.isEmpty()) {
+        qWarning() << "Failed to advertise server. No serverlist URL configured.";
+        return;
+    }
+
+    QJsonObject serverinfo;
+    if (!ConfigManager::serverDomainName().trimmed().isEmpty()) {
+        serverinfo["ip"] = ConfigManager::serverDomainName();
+    }
+    if (ConfigManager::securePort() != -1) {
+        serverinfo["wss_port"] = ConfigManager::securePort();
+    }
+    serverinfo["port"] = 27106;
+    serverinfo["ws_port"] = ConfigManager::advertiseWSProxy() ? WS_REVERSE_PROXY : m_port;
+    serverinfo["players"] = *m_players;
+    serverinfo["name"] = ConfigManager::serverName();
+    serverinfo["description"] = ConfigManager::serverDescription();
+    const QByteArray payload = QJsonDocument(serverinfo).toJson();
+
+    // Each ms gets its own independent POST for avoiding fucking shit up
+    for (const QUrl &serverlist : serverlists) {
+        if (!serverlist.isValid()) {
+            qWarning() << "Failed to advertise server. Serverlist URL is not valid. URL:" << serverlist.toString();
+            continue;
+        }
         QNetworkRequest request(serverlist);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-        QJsonObject serverinfo;
-        if (!ConfigManager::serverDomainName().trimmed().isEmpty()) {
-            serverinfo["ip"] = ConfigManager::serverDomainName();
-        }
-        if (ConfigManager::securePort() != -1) {
-            serverinfo["wss_port"] = ConfigManager::securePort();
-        }
-        serverinfo["port"] = 27106;
-        serverinfo["ws_port"] = ConfigManager::advertiseWSProxy() ? WS_REVERSE_PROXY : m_port;
-        serverinfo["players"] = *m_players;
-        serverinfo["name"] = ConfigManager::serverName();
-        serverinfo["description"] = ConfigManager::serverDescription();
-
-        m_manager->post(request, QJsonDocument(serverinfo).toJson());
-    }
-    else {
-        qWarning() << "Failed to advertise server. Serverlist URL is not valid. URL:" << serverlist.toString();
+        m_manager->post(request, payload);
     }
 }
 
@@ -112,5 +119,5 @@ void ServerPublisher::finished(QNetworkReply *f_reply)
             return;
         }
     }
-    qInfo() << "Sucessfully advertised server to serverlist.";
+    qInfo() << "Successfully advertised server to serverlist:" << remote_url;
 }
