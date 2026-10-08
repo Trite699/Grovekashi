@@ -147,6 +147,13 @@ class MusicManager : public QObject
      */
     bool isCustom(int f_area_id, QString f_song_name);
 
+    /**
+     * @brief Sends the current musiclist to every client of every registered area.
+     *
+     * Used after the root musiclist changed while the server is running.
+     */
+    void broadcastMusicList();
+
   public slots:
 
     /**
