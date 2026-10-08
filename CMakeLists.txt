@@ -99,6 +99,8 @@ qt_add_executable(akashi
   src/main.cpp
   src/medieval_parser.cpp
   src/medieval_parser.h
+  src/cdn_music_fetcher.cpp
+  src/cdn_music_fetcher.h
   src/music_manager.cpp
   src/music_manager.h
   src/packets.cpp
