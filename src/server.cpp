@@ -154,7 +154,7 @@ void Server::forceJoinLockdownAllows(const QString &f_hwid) const
 void Server::toggleJoinLockdown()
 {
     m_join_lockdown_enabled = !m_join_lockdown_enabled;
-    
+
     if (m_join_lockdown_enabled) {
         for (AOClient *l_client : qAsConst(m_clients)) {
             if (l_client && !l_client->m_hwid.isEmpty()) {
