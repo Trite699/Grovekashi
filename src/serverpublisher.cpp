@@ -55,6 +55,12 @@ void ServerPublisher::publishServer()
         return;
     }
 
+    if (serverlist.isValid()) {
+        QNetworkRequest request(serverlist);
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute,false);
+    }
+
     QJsonObject serverinfo;
     if (!ConfigManager::serverDomainName().trimmed().isEmpty()) {
         serverinfo["ip"] = ConfigManager::serverDomainName();
