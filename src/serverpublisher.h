@@ -48,6 +48,11 @@ class ServerPublisher : public QObject
 
   private:
     /**
+     * @brief Prints the error details a masterserver returned in its response body.
+     */
+    void logResponseErrors(const QByteArray &f_data);
+
+    /**
      * @brief Pointer to the network manager, necessary to execute POST requests to the masterserver.
      */
     QNetworkAccessManager *m_manager;
