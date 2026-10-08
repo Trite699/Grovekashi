@@ -1,1 +1,4 @@
 cdn.discord.com
+cdn.discordapp.com
+file.garden
+files.catbox.moe
