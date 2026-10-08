@@ -6,6 +6,7 @@ on:
   push:
     branches:
     - master
+    - ruletimer
   pull_request:
     branches:
     - master
