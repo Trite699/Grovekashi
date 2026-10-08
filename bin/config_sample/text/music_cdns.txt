@@ -1,0 +1,3 @@
+# Content servers whose sounds/music directory is scanned for songs. One base URL per line.
+# Found songs are cached in config/music_cdn_cache.json and added to the musiclist.
+https://attorneyoffline.de/newvanillabase/
