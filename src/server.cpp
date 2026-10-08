@@ -217,7 +217,8 @@ void Server::start() {
                    "starting, check your config.";
   }
 
-  server = new QWebSocketServer("Akashi", QWebSocketServer::NonSecureMode, this);
+  server =
+      new QWebSocketServer("Akashi", QWebSocketServer::NonSecureMode, this);
   if (!server->listen(bind_addr, m_port)) {
     qCritical() << "Server error:" << server->errorString();
   } else {
@@ -250,7 +251,8 @@ void Server::start() {
   // Get musiclist from config file
   m_music_list = music_manager->rootMusiclist();
 
-  // Songs from other CDNs are merged in by ConfigManager::musiclist() from the cache.
+  // Songs from other CDNs are merged in by ConfigManager::musiclist() from the
+  // cache.
   m_cdn_music_fetcher = new CdnMusicFetcher(this);
   connect(m_cdn_music_fetcher, &CdnMusicFetcher::musicListUpdated, this,
           [this] {
@@ -314,8 +316,7 @@ void Server::clientConnected() {
   }
 
   int user_id = m_available_ids.pop();
-  AOClient *client =
-      new AOClient(this, l_socket, this, user_id, music_manager);
+  AOClient *client = new AOClient(this, l_socket, this, user_id, music_manager);
   m_clients_ids.insert(user_id, client);
 
   bool is_at_multiclient_limit = false;
