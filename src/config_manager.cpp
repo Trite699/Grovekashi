@@ -747,9 +747,22 @@ bool ConfigManager::publishServerEnabled()
     return m_settings->value("Advertiser/advertise", "true").toBool();
 }
 
-QUrl ConfigManager::serverlistURL()
+QList<QUrl> ConfigManager::serverlistURLs()
 {
-    return m_settings->value("Advertiser/ms_ip", "").toUrl();
+    // QSettings splits unquoted comma-separated ini values into a QStringList for us.
+    QList<QUrl> urls;
+    const QStringList entries = m_settings->value("Advertiser/ms_ip", "").toStringList();
+    for (const QString &entry : entries) {
+        const QString trimmed = entry.trimmed();
+        if (trimmed.isEmpty()) {
+            continue;
+        }
+        QUrl url(trimmed);
+        if (!urls.contains(url)) {
+            urls.append(url);
+        }
+    }
+    return urls;
 }
 
 QString ConfigManager::serverDomainName()
