@@ -55,7 +55,7 @@ void ServerPublisher::publishServer()
         return;
     }
 
-    if (serverlist.isValid()) {
+    if (serverlists.isValid()) {
         QNetworkRequest request(serverlist);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
