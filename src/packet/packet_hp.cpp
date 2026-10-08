@@ -1,6 +1,6 @@
 #include "packet/packet_hp.h"
-#include "config_manager.h"
 #include "akashiutils.h"
+#include "config_manager.h"
 #include "packet/packet_factory.h"
 #include "server.h"
 
