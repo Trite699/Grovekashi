@@ -15,845 +15,491 @@
 //    You should have received a copy of the GNU Affero General Public License      //
 //    along with this program.  If not, see <https://www.gnu.org/licenses/>.        //
 //////////////////////////////////////////////////////////////////////////////////////
-#include "config_manager.h"
-#include <QSqlDatabase>
-#include <QSqlQuery>
+#ifndef CONFIG_MANAGER_H
+#define CONFIG_MANAGER_H
+
+#define CONFIG_VERSION 1
+
+#include <QDebug>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QHostAddress>
+#include <QList>
+#include <QMetaEnum>
+#include <QSettings>
 #include <QUrl>
 
-QSettings *ConfigManager::m_settings = new QSettings("config/config.ini", QSettings::IniFormat);
-QSettings *ConfigManager::m_discord = new QSettings("config/discord.ini", QSettings::IniFormat);
-QSettings *ConfigManager::m_areas = new QSettings("config/areas.ini", QSettings::IniFormat);
-QSettings *ConfigManager::m_logtext = new QSettings("config/text/logtext.ini", QSettings::IniFormat);
-QSettings *ConfigManager::m_ambience = new QSettings("config/ambience.ini", QSettings::IniFormat);
-ConfigManager::CommandSettings *ConfigManager::m_commands = new CommandSettings();
-MusicList *ConfigManager::m_musicList = new MusicList;
-QHash<QString, ConfigManager::help> *ConfigManager::m_commands_help = new QHash<QString, ConfigManager::help>;
-QStringList *ConfigManager::m_ordered_list = new QStringList;
+// JSON loading requirements
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
-bool ConfigManager::verifyServerConfig()
-{
-    // Verify directories
-    QStringList l_directories{"config/", "config/text/"};
-    for (const QString &l_directory : l_directories) {
-        if (!dirExists(QFileInfo(l_directory))) {
-            qCritical() << l_directory + " does not exist!";
-            return false;
-        }
-    }
-
-    // Verify config files
-    QStringList l_config_files{"config/config.ini", "config/areas.ini", "config/backgrounds.txt", "config/characters.txt", "config/music.json",
-                               "config/discord.ini", "config/text/8ball.txt", "config/text/gimp.txt", "config/text/praise.txt",
-                               "config/text/reprimands.txt", "config/text/commandhelp.json", "config/text/cdns.txt", "config/ipbans.json"};
-    for (const QString &l_file : l_config_files) {
-        if (!fileExists(QFileInfo(l_file))) {
-            qCritical() << l_file + " does not exist!";
-            return false;
-        }
-    }
-
-    // Verify areas
-    QSettings l_areas_ini("config/areas.ini", QSettings::IniFormat);
-    if (l_areas_ini.childGroups().length() < 1) {
-        qCritical() << "areas.ini is invalid!";
-        return false;
-    }
-
-    // Read dices
-    QSettings l_dice_ini("config/dice.ini", QSettings::IniFormat);
-    QStringList dices = l_dice_ini.childGroups();
-
-    for (const QString &dice : dices) {
-        l_dice_ini.beginGroup(dice);
-
-        int max = l_dice_ini.value("max").toInt();
-        QStringList faces;
-
-        for (int i = 1; i <= max; ++i) {
-            QString key = QString::number(i);
-            if (l_dice_ini.contains(key)) {
-                faces.append(l_dice_ini.value(key).toString());
-            }
-            else {
-                qCritical() << "dice.ini max mismatch!";
-                break;
-            }
-        }
-        m_commands->dice_faces[dice] = faces;
-        l_dice_ini.endGroup();
-    }
-
-    // Verify config settings
-    m_settings->beginGroup("Options");
-    bool ok;
-    m_settings->value("ms_port", 27016).toInt(&ok);
-    if (!ok) {
-        qCritical("ms_port is not a valid port!");
-        return false;
-    }
-    m_settings->value("port", 27016).toInt(&ok);
-    if (!ok) {
-        qCritical("port is not a valid port!");
-        return false;
-    }
-    m_settings->value("secure_port", -1).toInt(&ok);
-    if (!ok) {
-        qCritical("secure_port is not a valid port!");
-        return false;
-    }
-
-    QString l_auth = m_settings->value("auth", "simple").toString().toLower();
-    if (!(l_auth == "simple" || l_auth == "advanced")) {
-        qCritical("auth is not a valid auth type!");
-        return false;
-    }
-
-    int l_soft_limit = m_settings->value("packet_rate_limit_soft", 10).toInt(&ok);
-    if (!ok) {
-        qCritical("packet_rate_limit_soft is not a valid limit!");
-        return false;
-    }
-    if (l_soft_limit <= 0) {
-        qWarning("packet_rate_limit_soft is 0 or less, warning threshold is disabled!");
-    }
-
-    int l_hard_limit = m_settings->value("packet_rate_limit_hard", 20).toInt(&ok);
-    if (!ok) {
-        qCritical("packet_rate_limit_hard is not a valid limit!");
-        return false;
-    }
-    else if (l_soft_limit > 0 && l_hard_limit <= l_soft_limit) {
-        qCritical("packet_rate_limit_hard must be greater than packet_rate_limit_soft!");
-        return false;
-    }
-    if (l_hard_limit <= 0) {
-        qWarning("packet_rate_limit_hard is 0 or less, rate limiting is disabled!");
-    }
-
-    m_settings->endGroup();
-    m_commands->magic_8ball = (loadConfigFile("8ball"));
-    m_commands->praises = (loadConfigFile("praise"));
-    m_commands->reprimands = (loadConfigFile("reprimands"));
-    m_commands->gimps = (loadConfigFile("gimp"));
-    m_commands->filters = (loadConfigFile("filter"));
-    m_commands->cdns = (loadConfigFile("cdns"));
-    if (m_commands->cdns.isEmpty())
-        m_commands->cdns = QStringList{"cdn.example.com"};
-
-    return true;
-}
-
-QString ConfigManager::bindIP()
-{
-    return m_settings->value("Options/bind_ip", "all").toString();
-}
-
-QStringList ConfigManager::charlist()
-{
-    QStringList l_charlist;
-    QFile l_file("config/characters.txt");
-    l_file.open(QIODevice::ReadOnly | QIODevice::Text);
-    while (!l_file.atEnd()) {
-        l_charlist.append(l_file.readLine().trimmed());
-    }
-    l_file.close();
-
-    return l_charlist;
-}
-
-QStringList ConfigManager::backgrounds()
-{
-    QStringList l_backgrounds;
-    QFile l_file("config/backgrounds.txt");
-    l_file.open(QIODevice::ReadOnly | QIODevice::Text);
-    while (!l_file.atEnd()) {
-        l_backgrounds.append(l_file.readLine().trimmed());
-    }
-    l_file.close();
-
-    return l_backgrounds;
-}
+#include "data_types.h"
+#include "typedefs.h"
 
 /**
- * Adds every category and song of a music.json style array to the musiclist.
- *
- * A song may carry a "cdn" key instead of a "realname". Its real name then becomes
- * <cdn>/sounds/music/<name>, so clients stream the file straight from that content server.
- * With f_skip_existing, songs whose name is already taken are skipped, so music.json always wins over the CDN cache.
+ * @brief The config file handler class.
  */
-static void appendMusicArray(const QJsonArray &f_array, MusicList *f_list, QStringList *f_ordered, bool f_skip_existing)
-{
-    for (int i = 0; i < f_array.size(); i++) { // Iterate trough entire JSON file to assemble musiclist
-        QJsonObject l_child_obj = f_array.at(i).toObject();
-
-        // Technically not a requirement, but neat for organisation.
-        QString l_category_name = l_child_obj["category"].toString();
-        if (!l_category_name.isEmpty()) {
-            if (!(f_skip_existing && f_list->contains(l_category_name))) {
-                f_list->insert(l_category_name, {l_category_name, 0});
-                f_ordered->append(l_category_name);
-            }
-        }
-        else {
-            qWarning() << "Category name not set. This may cause the musiclist to be displayed incorrectly.";
-        }
-
-        QJsonArray l_child_array = l_child_obj["songs"].toArray();
-        for (int j = 0; j < l_child_array.size(); j++) { // Inner for loop because a category can contain multiple songs.
-            QJsonObject l_song_obj = l_child_array.at(j).toObject();
-            QString l_song_name = l_song_obj["name"].toString();
-            if (f_skip_existing && (l_song_name.isEmpty() || f_list->contains(l_song_name))) {
-                continue;
-            }
-            QString l_real_name = l_song_obj["realname"].toString();
-            QString l_cdn = l_song_obj["cdn"].toString().trimmed();
-            if (l_real_name.isEmpty() && !l_cdn.isEmpty()) {
-                if (!l_cdn.endsWith('/')) {
-                    l_cdn += '/';
-                }
-                // Encode every path segment, but keep the folder separators.
-                QStringList l_segments = l_song_name.split('/');
-                for (QString &l_segment : l_segments) {
-                    l_segment = QString::fromUtf8(QUrl::toPercentEncoding(l_segment));
-                }
-                l_real_name = l_cdn + "sounds/music/" + l_segments.join('/');
-            }
-            if (l_real_name.isEmpty()) {
-                l_real_name = l_song_name;
-            }
-            int l_song_duration = l_song_obj["length"].toVariant().toInt();
-            f_list->insert(l_song_name, {l_real_name, l_song_duration});
-            f_ordered->append(l_song_name);
-        }
-    }
-}
-
-MusicList ConfigManager::musiclist()
-{
-    // Make sure the lists are empty before appending new data.
-    m_musicList->clear();
-    m_ordered_list->clear();
-
-    QFile l_music_json("config/music.json");
-    l_music_json.open(QIODevice::ReadOnly | QIODevice::Text);
-
-    QJsonParseError l_error;
-    QJsonDocument l_music_list_json = QJsonDocument::fromJson(l_music_json.readAll(), &l_error);
-    l_music_json.close();
-    if (!(l_error.error == QJsonParseError::NoError)) { // Non-Terminating error.
-        qWarning() << "Unable to load musiclist. The following error was encounted : " + l_error.errorString();
-        return QMap<QString, QPair<QString, int>>{}; // Server can still run without music.
-    }
-
-    // Akashi expects the musiclist to be contained in a JSON array, even if its only a single category.
-    appendMusicArray(l_music_list_json.array(), m_musicList, m_ordered_list, false);
-
-    // Songs found on other CDNs by CdnMusicFetcher. Same layout as music.json.
-    QFile l_cdn_cache("config/music_cdn_cache.json");
-    if (l_cdn_cache.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QJsonDocument l_cache_json = QJsonDocument::fromJson(l_cdn_cache.readAll(), &l_error);
-        if (l_error.error == QJsonParseError::NoError) {
-            appendMusicArray(l_cache_json.object().value("music").toArray(), m_musicList, m_ordered_list, true);
-        }
-        else {
-            qWarning() << "Unable to load the CDN music cache:" << l_error.errorString();
-        }
-    }
-
-    return *m_musicList;
-}
-
-QStringList ConfigManager::ordered_songs()
-{
-    return *m_ordered_list;
-}
-
-void ConfigManager::loadCommandHelp()
-{
-    QFile l_help_json("config/text/commandhelp.json");
-    l_help_json.open(QIODevice::ReadOnly | QIODevice::Text);
-
-    QJsonParseError l_error;
-    QJsonDocument l_help_list_json = QJsonDocument::fromJson(l_help_json.readAll(), &l_error);
-    if (!(l_error.error == QJsonParseError::NoError)) { // Non-Terminating error.
-        qWarning() << "Unable to load help information. The following error occurred: " + l_error.errorString();
-    }
-
-    // Akashi expects the helpfile to contain multiple entires, so it always checks for an array first.
-    QJsonArray l_Json_root_array = l_help_list_json.array();
-    QJsonObject l_child_obj;
-    QJsonArray l_names;
-
-    for (int i = 0; i < l_Json_root_array.size(); i++) {
-        l_child_obj = l_Json_root_array.at(i).toObject();
-        l_names = l_child_obj["names"].toArray();
-        QString l_usage = l_child_obj["usage"].toString();
-        QString l_text = l_child_obj["text"].toString();
-
-        for (int j = 0; j < l_names.size(); j++) {
-            QString l_name = l_names.at(j).toString();
-            if (!l_name.isEmpty()) {
-                help l_help_information = {
-                    .usage = l_usage,
-                    .text = l_text};
-
-                m_commands_help->insert(l_name, l_help_information);
-            }
-        }
-    }
-}
-
-QSettings *ConfigManager::areaData()
-{
-    return m_areas;
-}
-
-QSettings *ConfigManager::ambience()
-{
-    return m_ambience;
-}
-
-QStringList ConfigManager::sanitizedAreaNames()
-{
-    QStringList l_area_names = m_areas->childGroups(); // invisibly does a lexicographical sort, because Qt is great like that
-    std::sort(l_area_names.begin(), l_area_names.end(), [](const QString &a, const QString &b) { return a.split(":")[0].toInt() < b.split(":")[0].toInt(); });
-    QStringList l_sanitized_area_names;
-    for (const QString &areaName : qAsConst(l_area_names)) {
-        QStringList l_nameSplit = areaName.split(":");
-        l_nameSplit.removeFirst();
-        QString l_area_name_sanitized = l_nameSplit.join(":");
-        l_sanitized_area_names.append(l_area_name_sanitized);
-    }
-    return l_sanitized_area_names;
-}
-
-QStringList ConfigManager::rawAreaNames()
-{
-    return m_areas->childGroups();
-}
-
-QStringList ConfigManager::iprangeBans()
-{
-    QFile l_json_file("config/ipbans.json");
-    l_json_file.open(QIODevice::ReadOnly | QIODevice::Text);
-
-    QJsonParseError l_error;
-    QJsonDocument l_ip_bans = QJsonDocument::fromJson(l_json_file.readAll(), &l_error);
-    if (l_error.error != QJsonParseError::NoError) {
-        qWarning() << "Unable to parse JSON file. Error:" << l_error.errorString();
-        return {};
-    }
-
-    QJsonObject l_json_obj = l_ip_bans.object();
-
-    QStringList l_range_bans;
-    l_range_bans.append(l_json_obj["ip_range"].toVariant().toStringList());
-
-    if (QFile::exists("storage/asn.sqlite3")) {
-        QSqlDatabase asn_db = QSqlDatabase::addDatabase("QSQLITE", "ASN");
-        asn_db.setDatabaseName("storage/asn.sqlite3");
-        asn_db.open();
-
-        // This is a dumb hack. Idk how else I can do this, but who gives a shit?
-        QSqlQuery query("SELECT ip FROM maxmind WHERE asn in (" + l_json_obj["asn"].toVariant().toStringList().join(",") + ")", asn_db);
-        query.exec();
-        while (query.next()) {
-            l_range_bans.append(query.value(0).toString());
-        }
-        asn_db.close();
-    }
-    l_range_bans.removeDuplicates();
-    return l_range_bans;
-}
-
-void ConfigManager::reloadSettings()
-{
-    m_settings->sync();
-    m_discord->sync();
-    m_logtext->sync();
-}
-
-QStringList ConfigManager::loadConfigFile(const QString filename)
-{
-    QStringList stringlist;
-    QFile l_file("config/text/" + filename + ".txt");
-    l_file.open(QIODevice::ReadOnly | QIODevice::Text);
-    while (!(l_file.atEnd())) {
-        stringlist.append(l_file.readLine().trimmed());
-    }
-    l_file.close();
-    return stringlist;
-}
-
-int ConfigManager::maxPlayers()
-{
-    bool ok;
-    int l_players = m_settings->value("Options/max_players", 100).toInt(&ok);
-    if (!ok) {
-        qWarning("max_players is not an int!");
-        l_players = 100;
-    }
-    return l_players;
-}
-
-int ConfigManager::serverPort()
-{
-    if (m_settings->contains("Options/webao_port")) {
-        qWarning("webao_port is deprecated, use port instead");
-        return m_settings->value("Options/webao_port", 27016).toInt();
-    }
-
-    return m_settings->value("Options/port", 27016).toInt();
-}
-
-int ConfigManager::joinCooldownSeconds()
-{
-    bool ok;
-    int value = m_settings->value("Options/join_cooldown_seconds", 60).toInt(&ok);
-    if (!ok || value < 0) {
-        qWarning("join_cooldown_seconds is not a non-negative integer!");
-        return 60;
-    }
-    return value;
-}
-
-int ConfigManager::modcallCooldownSeconds()
-{
-    bool ok;
-    int value = m_settings->value("Options/modcall_cooldown_seconds", 1800).toInt(&ok);
-    if (!ok || value < 0) {
-        qWarning("modcall_cooldown_seconds is not a non-negative integer!");
-        return 1800;
-    }
-    return value;
-}
-
-QString ConfigManager::joinCooldownMessage()
-{
-    return m_settings->value("Options/join_cooldown_message",
-                             "Please take a minute to familiarize yourself with the rules.")
-        .toString();
-}
-
-QString ConfigManager::joinLockdownMessage()
-{
-    return m_settings->value("Options/join_lockdown_message",
-                             "The server is currently in lockdown mode. Please wait until the lockdown is removed.")
-        .toString();
-}
-
-QString ConfigManager::joinLockdownConflictMessage()
-{
-    return m_settings->value("Options/join_lockdown_conflict_message",
-                             "A user already exists with this lockdown ID, modcall or wait until lockdown is removed.")
-        .toString();
-}
-
-int ConfigManager::maxOOCNameLength()
-{
-    bool ok;
-    int value = m_settings->value("Options/ooc_name_length", 20).toInt(&ok);
-    if (!ok || value < 0) {
-        qWarning("ooc_name_max is not a non-negative integer!");
-        return 20;
-    }
-    return value;
-}
-
-int ConfigManager::securePort()
-{
-    return m_settings->value("Options/secure_port", -1).toInt();
-}
-
-QString ConfigManager::serverDescription()
-{
-    return m_settings->value("Options/server_description", "This is my flashy new server!").toString();
-}
-
-QString ConfigManager::serverName()
-{
-    return m_settings->value("Options/server_name", "An Unnamed Server").toString();
-}
-
-QString ConfigManager::serverNickname()
-{
-    QString l_tag = m_settings->value("Options/server_nickname").toString();
-    return l_tag.isEmpty() ? serverName() : l_tag;
-}
-
-QString ConfigManager::motd()
-{
-    return m_settings->value("Options/motd", "MOTD not set").toString();
-}
-
-bool ConfigManager::webaoEnabled()
-{
-    return m_settings->value("Options/webao_enable", false).toBool();
-}
-
-DataTypes::AuthType ConfigManager::authType()
-{
-    QString l_auth = m_settings->value("Options/auth", "simple").toString().toUpper();
-    return toDataType<DataTypes::AuthType>(l_auth);
-}
-
-QString ConfigManager::modpass()
-{
-    return m_settings->value("Options/modpass", "changeme").toString();
-}
-
-int ConfigManager::logBuffer()
-{
-    bool ok;
-    int l_buffer = m_settings->value("Options/logbuffer", 500).toInt(&ok);
-    if (!ok) {
-        qWarning("logbuffer is not an int!");
-        l_buffer = 500;
-    }
-    return l_buffer;
-}
-
-DataTypes::LogType ConfigManager::loggingType()
-{
-    QString l_log = m_settings->value("Options/logging", "modcall").toString().toUpper();
-    return toDataType<DataTypes::LogType>(l_log);
-}
-
-int ConfigManager::maxStatements()
-{
-    bool ok;
-    int l_max = m_settings->value("Options/maximum_statements", 10).toInt(&ok);
-    if (!ok) {
-        qWarning("maximum_statements is not an int!");
-        l_max = 10;
-    }
-    return l_max;
-}
-int ConfigManager::multiClientLimit()
-{
-    bool ok;
-    int l_limit = m_settings->value("Options/multiclient_limit", 15).toInt(&ok);
-    if (!ok) {
-        qWarning("multiclient_limit is not an int!");
-        l_limit = 15;
-    }
-    return l_limit;
-}
-
-int ConfigManager::maxCharacters()
-{
-    bool ok;
-    int l_max = m_settings->value("Options/maximum_characters", 256).toInt(&ok);
-    if (!ok) {
-        qWarning("maximum_characters is not an int!");
-        l_max = 256;
-    }
-    return l_max;
-}
-
-int ConfigManager::messageFloodguard()
-{
-    bool ok;
-    int l_flood = m_settings->value("Options/message_floodguard", 250).toInt(&ok);
-    if (!ok) {
-        qWarning("message_floodguard is not an int!");
-        l_flood = 250;
-    }
-    return l_flood;
-}
-
-int ConfigManager::globalMessageFloodguard()
-{
-    bool ok;
-    int l_flood = m_settings->value("Options/global_message_floodguard", 0).toInt(&ok);
-    if (!ok) {
-        qWarning("global_message_floodguard is not an int!");
-        l_flood = 0;
-    }
-    return l_flood;
-}
-
-int ConfigManager::packetRateLimitSoft()
-{
-    bool ok;
-    int l_limit = m_settings->value("Options/packet_rate_limit_soft", 10).toInt(&ok);
-    if (!ok) {
-        qWarning("packet_rate_limit_soft is not an int!");
-        l_limit = 10;
-    }
-    return l_limit;
-}
-
-int ConfigManager::packetRateLimitHard()
-{
-    bool ok;
-    int l_limit = m_settings->value("Options/packet_rate_limit_hard", 20).toInt(&ok);
-    if (!ok) {
-        qWarning("packet_rate_limit_hard is not an int!");
-        l_limit = 20;
-    }
-    return l_limit;
-}
-
-QUrl ConfigManager::assetUrl()
-{
-    QByteArray l_url = m_settings->value("Options/asset_url", "").toString().toUtf8();
-    if (QUrl(l_url).isValid()) {
-        return QUrl(l_url);
-    }
-    else {
-        qWarning("asset_url is not a valid url!");
-        return QUrl(NULL);
-    }
-}
-
-int ConfigManager::diceMaxValue()
-{
-    bool ok;
-    int l_value = m_settings->value("Dice/max_value", 100).toInt(&ok);
-    if (!ok) {
-        qWarning("max_value is not an int!");
-        l_value = 100;
-    }
-    return l_value;
-}
-
-int ConfigManager::diceMaxDice()
-{
-    bool ok;
-    int l_dice = m_settings->value("Dice/max_dice", 100).toInt(&ok);
-    if (!ok) {
-        qWarning("max_dice is not an int!");
-        l_dice = 100;
-    }
-    return l_dice;
-}
-
-bool ConfigManager::discordWebhookEnabled()
-{
-    return m_discord->value("Discord/webhook_enabled", false).toBool();
-}
-
-bool ConfigManager::discordModcallWebhookEnabled()
-{
-    return m_discord->value("Discord/webhook_modcall_enabled", false).toBool();
-}
-
-QString ConfigManager::discordModcallWebhookUrl()
-{
-    return m_discord->value("Discord/webhook_modcall_url", "").toString();
-}
-
-QString ConfigManager::discordModcallWebhookContent()
-{
-    return m_discord->value("Discord/webhook_modcall_content", "").toString();
-}
-
-bool ConfigManager::discordModcallWebhookSendFile()
-{
-    return m_discord->value("Discord/webhook_modcall_sendfile", false).toBool();
-}
-
-bool ConfigManager::discordBanWebhookEnabled()
-{
-    return m_discord->value("Discord/webhook_ban_enabled", false).toBool();
-}
-
-QString ConfigManager::discordBanWebhookUrl()
-{
-    return m_discord->value("Discord/webhook_ban_url", "").toString();
-}
-
-QString ConfigManager::discordWebhookColor()
-{
-    const QString l_default_color = "13312842";
-    QString l_color = m_discord->value("Discord/webhook_color", l_default_color).toString();
-    if (l_color.isEmpty()) {
-        return l_default_color;
-    }
-    else {
-        return l_color;
-    }
-}
-
-bool ConfigManager::passwordRequirements()
-{
-    return m_settings->value("Password/password_requirements", true).toBool();
-}
-
-int ConfigManager::passwordMinLength()
-{
-    bool ok;
-    int l_min = m_settings->value("Password/pass_min_length", 8).toInt(&ok);
-    if (!ok) {
-        qWarning("pass_min_length is not an int!");
-        l_min = 8;
-    }
-    return l_min;
-}
-
-int ConfigManager::passwordMaxLength()
-{
-    bool ok;
-    int l_max = m_settings->value("Password/pass_max_length", 0).toInt(&ok);
-    if (!ok) {
-        qWarning("pass_max_length is not an int!");
-        l_max = 0;
-    }
-    return l_max;
-}
-
-bool ConfigManager::passwordRequireMixCase()
-{
-    return m_settings->value("Password/pass_required_mix_case", true).toBool();
-}
-
-bool ConfigManager::passwordRequireNumbers()
-{
-    return m_settings->value("Password/pass_required_numbers", true).toBool();
-}
-
-bool ConfigManager::passwordRequireSpecialCharacters()
-{
-    return m_settings->value("Password/pass_required_special", true).toBool();
-}
-
-bool ConfigManager::passwordCanContainUsername()
-{
-    return m_settings->value("Password/pass_can_contain_username", false).toBool();
-}
-
-QString ConfigManager::LogText(QString f_logtype)
-{
-    return m_logtext->value("LogConfiguration/" + f_logtype, "").toString();
-}
-
-int ConfigManager::afkTimeout()
-{
-    bool ok;
-    int l_afk = m_settings->value("Options/afk_timeout", 300).toInt(&ok);
-    if (!ok) {
-        qWarning("afk_timeout is not an int!");
-        l_afk = 300;
-    }
-    return l_afk;
-}
-
-void ConfigManager::setAuthType(const DataTypes::AuthType f_auth)
-{
-    m_settings->setValue("Options/auth", fromDataType<DataTypes::AuthType>(f_auth).toLower());
-}
-
-QStringList ConfigManager::diceFaces(const QString f_name)
-{
-    return m_commands->dice_faces[f_name];
-}
-
-QStringList ConfigManager::magic8BallAnswers()
-{
-    return m_commands->magic_8ball;
-}
-
-QStringList ConfigManager::praiseList()
-{
-    return m_commands->praises;
-}
-
-QStringList ConfigManager::reprimandsList()
-{
-    return m_commands->reprimands;
-}
-
-QStringList ConfigManager::gimpList()
-{
-    return m_commands->gimps;
-}
-
-QStringList ConfigManager::filterList()
-{
-    return m_commands->filters;
-}
-
-QStringList ConfigManager::cdnList()
-{
-    return m_commands->cdns;
-}
-
-QStringList ConfigManager::musicCdnList()
-{
-    QStringList l_cdns;
-    if (!QFile::exists("config/text/music_cdns.txt")) {
-        return l_cdns; // Optional file. No file means no CDN scanning.
-    }
-    const QStringList l_lines = loadConfigFile("music_cdns");
-    for (const QString &l_line : l_lines) {
-        if (!l_line.isEmpty() && !l_line.startsWith('#')) {
-            l_cdns.append(l_line);
-        }
-    }
-    return l_cdns;
-}
-
-int ConfigManager::cdnMusicRefreshHours()
-{
-    bool ok;
-    int l_hours = m_settings->value("Options/cdn_music_refresh_hours", 24).toInt(&ok);
-    if (!ok || l_hours < 0) {
-        qWarning("cdn_music_refresh_hours is not a valid number!");
-        l_hours = 24;
-    }
-    return l_hours;
-}
-
-bool ConfigManager::publishServerEnabled()
-{
-    return m_settings->value("Advertiser/advertise", "true").toBool();
-}
-
-QList<QUrl> ConfigManager::serverlistURLs()
-{
-    // QSettings splits unquoted comma-separated ini values into a QStringList for us.
-    QList<QUrl> urls;
-    const QStringList entries = m_settings->value("Advertiser/ms_ip", "").toStringList();
-    for (const QString &entry : entries) {
-        const QString trimmed = entry.trimmed();
-        if (trimmed.isEmpty()) {
-            continue;
-        }
-        QUrl url(trimmed);
-        if (!urls.contains(url)) {
-            urls.append(url);
-        }
-    }
-    return urls;
-}
-
-QString ConfigManager::serverDomainName()
-{
-    return m_settings->value("Advertiser/hostname", "").toString();
-}
-
-bool ConfigManager::advertiseWSProxy()
-{
-    return m_settings->value("Advertiser/cloudflare_enabled", "false").toBool();
-}
-
-ConfigManager::help ConfigManager::commandHelp(QString f_command_name)
-{
-    return m_commands_help->value(f_command_name);
-}
-
-void ConfigManager::setMotd(const QString f_motd)
-{
-    m_settings->setValue("Options/motd", f_motd);
-}
-
-bool ConfigManager::fileExists(const QFileInfo &f_file)
-{
-    return (f_file.exists() && f_file.isFile());
-}
-
-bool ConfigManager::dirExists(const QFileInfo &f_dir)
-{
-    return (f_dir.exists() && f_dir.isDir());
-}
+class ConfigManager
+{
+
+  public:
+    /**
+     * @brief Verifies the server configuration, confirming all required files/directories exist and are valid.
+     *
+     * @return True if the server configuration was verified, false otherwise.
+     */
+    static bool verifyServerConfig();
+
+    /**
+     * @brief Returns the IP the server binds to.
+     */
+    static QString bindIP();
+
+    /**
+     * @brief Returns the character list of the server..
+     */
+    static QStringList charlist();
+
+    /**
+     * @brief Returns the a QStringList of the available backgrounds..
+     */
+    static QStringList backgrounds();
+
+    /**
+     * @brief Returns a QStringlist of the available songs..
+     */
+    static MusicList musiclist();
+
+    /**
+     * @brief Returns an ordered QList of all basesongs of this server..
+     */
+    static QStringList ordered_songs();
+
+    /**
+     * @brief Loads help information into m_help_information..
+     */
+    static void loadCommandHelp();
+
+    /**
+     * @brief Returns a pointer to the QSettings object which contains the area configuration..
+     */
+    static QSettings *areaData();
+
+    /**
+     * @brief Returns a pointer to the QSettings object which contains the ambience configuration..
+     */
+    static QSettings *ambience();
+
+    /**
+     * @brief Returns a sanitized QStringList of the areas..
+     */
+    static QStringList sanitizedAreaNames();
+
+    /**
+     * @brief Returns the raw arealist.
+     */
+    static QStringList rawAreaNames();
+
+    /**
+     * @brief Returns a list of the IPrange bans..
+     */
+    static QStringList iprangeBans();
+
+    /**
+     * @brief Returns the maximum number of players the server will allow..
+     */
+    static int maxPlayers();
+
+    /**
+     * @brief Returns the port to listen for connections on..
+     */
+    static int serverPort();
+
+    /**
+     * @brief Returns the SSL port to listen for connections on..
+     */
+    static int securePort();
+
+    /**
+     * @brief Returns the server description..
+     */
+    static QString serverDescription();
+
+    /**
+     * @brief Returns the server name..
+     */
+    static QString serverName();
+
+    /**
+     * @brief Returns the server's nickname.
+     */
+    static QString serverNickname();
+
+    /**
+     * @brief Returns the server's Message of the Day..
+     */
+    static QString motd();
+
+    /**
+     * @brief Returns true if the server should accept webAO connections..
+     */
+    static bool webaoEnabled();
+
+    /**
+     * @brief Returns the server's authorization type..
+     */
+    static DataTypes::AuthType authType();
+
+    /**
+     * @brief Returns the server's moderator password..
+     */
+    static QString modpass();
+
+    /**
+     * @brief Returns the server's log buffer length..
+     */
+    static int logBuffer();
+
+    /**
+     * @brief Returns the server's logging type..
+     */
+    static DataTypes::LogType loggingType();
+
+    /**
+     * @brief Returns true if the server should advertise to the master server..
+     */
+    static int maxStatements();
+
+    /**
+     * @brief Returns the maximum number of permitted connections from the same IP..
+     */
+    static int multiClientLimit();
+
+    static int joinCooldownSeconds();
+    static QString joinCooldownMessage();
+    static QString joinLockdownMessage();
+    static QString joinLockdownConflictMessage();
+    static int modcallCooldownSeconds();
+    static int maxOOCNameLength();
+
+    /**
+     * @brief Returns the maximum number of characters a message can contain..
+     */
+    static int maxCharacters();
+
+    /**
+     * @brief Returns the duration of the message floodguard..
+     */
+    static int messageFloodguard();
+
+    /**
+     * @brief Returns the duration of the global message floodguard..
+     */
+    static int globalMessageFloodguard();
+
+    /**
+     * @brief Returns the packet count limit for the warning threshold..
+     */
+    static int packetRateLimitSoft();
+
+    /**
+     * @brief Returns the packet count limit for the disconnection threshold..
+     */
+    static int packetRateLimitHard();
+
+    /**
+     * @brief Returns the URL where the server should retrieve remote assets from..
+     */
+    static QUrl assetUrl();
+
+    /**
+     * @brief Returns the maximum number of sides dice can have..
+     */
+    static int diceMaxValue();
+
+    /**
+     * @brief Returns the maximum number of dice that can be rolled at once..
+     */
+    static int diceMaxDice();
+
+    /**
+     * @brief Returns true if the discord webhook integration is enabled..
+     */
+    static bool discordWebhookEnabled();
+
+    /**
+     * @brief Returns true if the discord modcall webhook is enabled..
+     */
+    static bool discordModcallWebhookEnabled();
+
+    /**
+     * @brief Returns the discord webhook URL..
+     */
+    static QString discordModcallWebhookUrl();
+
+    /**
+     * @brief Returns the discord webhook content..
+     */
+    static QString discordModcallWebhookContent();
+
+    /**
+     * @brief Returns true if the discord webhook should send log files..
+     */
+    static bool discordModcallWebhookSendFile();
+
+    /**
+     * @brief Returns true if the discord ban webhook is enabled..
+     */
+    static bool discordBanWebhookEnabled();
+
+    /**
+     * @brief Returns the Discord Ban Webhook URL..
+     */
+    static QString discordBanWebhookUrl();
+
+    /**
+     * @brief Returns a user configurable color code for the embeed object.s.
+     */
+    static QString discordWebhookColor();
+
+    /**
+     * @brief Returns true if password requirements should be enforced..
+     */
+    static bool passwordRequirements();
+
+    /**
+     * @brief Returns the minimum length passwords must be..
+     */
+    static int passwordMinLength();
+
+    /**
+     * @brief Returns the maximum length passwords can be, or `0` for unlimited length..
+     */
+    static int passwordMaxLength();
+
+    /**
+     * @brief Returns true if passwords must be mixed case..
+     */
+    static bool passwordRequireMixCase();
+
+    /**
+     * @brief Returns true is passwords must contain one or more numbers..
+     */
+    static bool passwordRequireNumbers();
+
+    /**
+     * @brief Returns true if passwords must contain one or more special characters...
+     */
+    static bool passwordRequireSpecialCharacters();
+
+    /**
+     * @brief Returns true if passwords can contain the username..
+     */
+    static bool passwordCanContainUsername();
+
+    /**
+     * @brief Returns the logstring for the specified logtype.
+     *
+     * @param Name of the logstring we want..
+     */
+    static QString LogText(QString f_logtype);
+
+    /**
+     * @brief Returns the duration before a client is considered AFK..
+     */
+    static int afkTimeout();
+
+    /**
+     * @brief Returns a list of dice faces..
+     */
+    static QStringList diceFaces(const QString f_name);
+
+    /**
+     * @brief Returns a list of magic 8 ball answers..
+     */
+    static QStringList magic8BallAnswers();
+
+    /**
+     * @brief Returns a list of praises..
+     */
+    static QStringList praiseList();
+
+    /**
+     * @brief Returns a list of reprimands..
+     */
+    static QStringList reprimandsList();
+
+    /**
+     * @brief Returns the server gimp list..
+     */
+    static QStringList gimpList();
+
+    /**
+     * @brief Returns the server regex filter list.
+     */
+    static QStringList filterList();
+
+    /**
+     * @brief Returns the server approved domain list..
+     */
+    static QStringList cdnList();
+
+    /**
+     * @brief Returns the base URLs of content servers whose sounds/music directory is scanned for songs.
+     *
+     * Read from config/text/music_cdns.txt, one URL per line. Lines starting with # are ignored.
+     */
+    static QStringList musicCdnList();
+
+    /**
+     * @brief Hours between two scans of the music CDNs. 0 disables periodic rescans. Defaults to 24.
+     */
+    static int cdnMusicRefreshHours();
+
+    /**
+     * @brief Returns if the advertiser is enabled to advertise on ms3.
+     */
+    static bool publishServerEnabled();
+
+    /**
+     * @brief Returns the URLs of all masterservers the server should advertise to.
+     * Configured as a comma-separated list in `ms_ip`. Invalid or empty entries are skipped.
+     */
+    static QList<QUrl> serverlistURLs();
+
+    /**
+     * @brief Returns an optional hostname paramemter for the advertiser.
+     * If used allows user to set a custom IP or domain name.
+     */
+    static QString serverDomainName();
+
+    /**
+     * @brief Returns a dummy port instead of the real port
+     * @return
+     */
+    static bool advertiseWSProxy();
+
+    /**
+     * @brief A struct that contains the help information for a command.
+     *        It's split in the syntax and the explanation text.
+     */
+    struct help
+    {
+        QString usage;
+        QString text;
+    };
+
+    /**
+     * @brief Returns a struct with the help information of the command..
+     */
+    static help commandHelp(QString f_command_name);
+
+    /**
+     * @brief Sets the server's authorization type.
+     *
+     * @param f_auth The auth type to set.
+     */
+    static void setAuthType(const DataTypes::AuthType f_auth);
+
+    /**
+     * @brief Sets the server's Message of the Day.
+     *
+     * @param f_motd The MOTD to set.
+     */
+    static void setMotd(const QString f_motd);
+
+    /**
+     * @brief Reload the server configuration.
+     */
+    static void reloadSettings();
+
+  private:
+    /**
+     * @brief Checks if a file exists and is valid.
+     *
+     * @param file The file to check.
+     *
+     * @return True if the file exists and is valid, false otherwise.
+     */
+    static bool fileExists(const QFileInfo &file);
+
+    /**
+     * @brief Checks if a directory exists and is valid.
+     *
+     * @param file The directory to check.
+     *
+     * @return True if the directory exists and is valid, false otherwise.
+     */
+    static bool dirExists(const QFileInfo &dir);
+
+    /**
+     * @brief A struct for storing QStringLists loaded from command configuration files.
+     */
+    struct CommandSettings
+    {
+        QHash<QString, QStringList> dice_faces; //!< Contains customizable dices, found in config/dice.ini
+        QStringList magic_8ball;                //!< Contains answers for /8ball, found in config/text/8ball.txt
+        QStringList praises;                    //!< Contains command praises, found in config/text/praises.txt
+        QStringList reprimands;                 //!< Contains command reprimands, found in config/text/reprimands.txt
+        QStringList gimps;                      //!< Contains phrases for /gimp, found in config/text/gimp.txt
+        QStringList filters;                    //!< Contains filter regex, found in config/text/filter.txt
+        QStringList cdns;                       //!< Contains domains for custom song validation, found in config/text/cdns.txt
+    };
+
+    /**
+     * @brief Contains the settings required for various commands.
+     */
+    static CommandSettings *m_commands;
+
+    /**
+     * @brief Stores all server configuration values.
+     */
+    static QSettings *m_settings;
+
+    /**
+     * @brief Stores all discord webhook configuration values.
+     */
+    static QSettings *m_discord;
+
+    /**
+     * @brief Stores all of the area valus.
+     */
+    static QSettings *m_areas;
+
+    /**
+     * @brief Stores all adjustable logstrings.
+     */
+    static QSettings *m_logtext;
+
+    /**
+     * @brief Stores all adjustable logstrings.
+     */
+    static QSettings *m_ambience;
+
+    /**
+     * @brief Contains the musiclist with time durations.
+     */
+    static MusicList *m_musicList;
+
+    /**
+     * @brief Contains an ordered list for the musiclist.
+     */
+    static QStringList *m_ordered_list;
+
+    /**
+     * @brief QHash containing the help information for all commands registered to the server.
+     */
+    static QHash<QString, help> *m_commands_help;
+
+    /**
+     * @brief Returns a stringlist with the contents of a .txt file from config/text/.
+     *
+     * @param Name of the file to load.
+     */
+    static QStringList loadConfigFile(const QString filename);
+};
+
+#endif // CONFIG_MANAGER_H
