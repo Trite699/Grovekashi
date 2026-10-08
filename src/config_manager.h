@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHostAddress>
+#include <QList>
 #include <QMetaEnum>
 #include <QSettings>
 #include <QUrl>
@@ -352,9 +353,10 @@ class ConfigManager
     static bool publishServerEnabled();
 
     /**
-     * @brief Returns the IP or URL of the masterserver.
+     * @brief Returns the URLs of all masterservers the server should advertise to.
+     * Configured as a comma-separated list in `ms_ip`. Invalid or empty entries are skipped.
      */
-    static QUrl serverlistURL();
+    static QList<QUrl> serverlistURLs();
 
     /**
      * @brief Returns an optional hostname paramemter for the advertiser.
