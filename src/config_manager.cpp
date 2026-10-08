@@ -821,6 +821,11 @@ QList<QUrl> ConfigManager::serverlistURLs()
             continue;
         }
         QUrl url(trimmed);
+        // Masterservers that are known not to accept our listing requests.
+        static const QStringList ignored_hosts = {"weeeeeeebao.ddns.net"};
+        if (ignored_hosts.contains(url.host(), Qt::CaseInsensitive)) {
+            continue;
+        }
         if (!urls.contains(url)) {
             urls.append(url);
         }
