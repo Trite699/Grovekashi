@@ -240,6 +240,14 @@ void MusicManager::reloadRequest()
     m_cdns = ConfigManager::cdnList();
 }
 
+void MusicManager::broadcastMusicList()
+{
+    const QList<int> l_area_ids = m_custom_lists->keys();
+    for (const int l_area_id : l_area_ids) {
+        emit sendAreaFMPacket(PacketFactory::createPacket("FM", musiclist(l_area_id)), l_area_id);
+    }
+}
+
 void MusicManager::userJoinedArea(int f_area_index, int f_user_id)
 {
     emit sendFMPacket(PacketFactory::createPacket("FM", musiclist(f_area_index)), f_user_id);
