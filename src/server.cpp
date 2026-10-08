@@ -225,6 +225,7 @@ void Server::start()
         bind_addr = QHostAddress::Any;
     else
         bind_addr = QHostAddress(bind_ip);
+    
     if (bind_addr.protocol() != QAbstractSocket::IPv4Protocol && bind_addr.protocol() != QAbstractSocket::IPv6Protocol && bind_addr != QHostAddress::Any) {
         qCritical() << bind_ip << "is an invalid IP address to listen on! Server not starting, check your config.";
     }
@@ -252,7 +253,6 @@ void Server::start()
     m_backgrounds = ConfigManager::backgrounds();
 
     // Build our music manager.
-
     MusicList l_musiclist = ConfigManager::musiclist();
     music_manager = new MusicManager(ConfigManager::cdnList(), l_musiclist, ConfigManager::ordered_songs(), this);
     connect(music_manager, &MusicManager::sendFMPacket, this, &Server::unicast);
