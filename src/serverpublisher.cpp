@@ -28,7 +28,11 @@ const int WS_REVERSE_PROXY = 80;
 const int TIMEOUT = 1000 * 60 * 4;
 
 ServerPublisher::ServerPublisher(int port, int *player_count, QObject *parent) :
-    QObject(parent), m_manager{new QNetworkAccessManager(this)}, timeout_timer(new QTimer(this)), m_players(player_count), m_port{port}
+    QObject(parent),
+    m_manager{new QNetworkAccessManager(this)},
+    timeout_timer(new QTimer(this)),
+    m_players(player_count),
+    m_port{port}
 {
     connect(m_manager, &QNetworkAccessManager::finished, this, &ServerPublisher::finished);
     connect(timeout_timer, &QTimer::timeout, this, &ServerPublisher::publishServer);
