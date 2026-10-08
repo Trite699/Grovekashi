@@ -23,7 +23,8 @@ void PacketZZ::handlePacket(AreaData *area, AOClient &client) const
 {
     if (!client.getServer()->modcallCooldownAllows(client.m_ipid)) {
         client.sendServerMessage("You have already called a moderator! Please wait for them to arrive or privately message you. "
-                                 "You can send a modcall once every " + QString::number(ConfigManager::modcallCooldownSeconds() / 60) + " minutes.");
+                                 "You can send a modcall once every " +
+                                 QString::number(ConfigManager::modcallCooldownSeconds() / 60) + " minutes.");
         return;
     }
     QString l_name = client.name();
