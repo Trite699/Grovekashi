@@ -18,6 +18,7 @@
 #include "config_manager.h"
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QUrl>
 
 QSettings *ConfigManager::m_settings = new QSettings("config/config.ini", QSettings::IniFormat);
 QSettings *ConfigManager::m_discord = new QSettings("config/discord.ini", QSettings::IniFormat);
@@ -173,55 +174,91 @@ QStringList ConfigManager::backgrounds()
     return l_backgrounds;
 }
 
-MusicList ConfigManager::musiclist()
+/**
+ * Adds every category and song of a music.json style array to the musiclist.
+ *
+ * A song may carry a "cdn" key instead of a "realname". Its real name then becomes
+ * <cdn>/sounds/music/<name>, so clients stream the file straight from that content server.
+ * With f_skip_existing, songs whose name is already taken are skipped, so music.json always wins over the CDN cache.
+ */
+static void appendMusicArray(const QJsonArray &f_array, MusicList *f_list, QStringList *f_ordered, bool f_skip_existing)
 {
-    QFile l_music_json("config/music.json");
-    l_music_json.open(QIODevice::ReadOnly | QIODevice::Text);
-
-    QJsonParseError l_error;
-    QJsonDocument l_music_list_json = QJsonDocument::fromJson(l_music_json.readAll(), &l_error);
-    if (!(l_error.error == QJsonParseError::NoError)) { // Non-Terminating error.
-        qWarning() << "Unable to load musiclist. The following error was encounted : " + l_error.errorString();
-        return QMap<QString, QPair<QString, int>>{}; // Server can still run without music.
-    }
-
-    // Make sure the list is empty before appending new data.
-    if (!m_ordered_list->empty()) {
-        m_ordered_list->clear();
-    }
-
-    // Akashi expects the musiclist to be contained in a JSON array, even if its only a single category.
-    QJsonArray l_Json_root_array = l_music_list_json.array();
-    QJsonObject l_child_obj;
-    QJsonArray l_child_array;
-
-    for (int i = 0; i < l_Json_root_array.size(); i++) { // Iterate trough entire JSON file to assemble musiclist
-        l_child_obj = l_Json_root_array.at(i).toObject();
+    for (int i = 0; i < f_array.size(); i++) { // Iterate trough entire JSON file to assemble musiclist
+        QJsonObject l_child_obj = f_array.at(i).toObject();
 
         // Technically not a requirement, but neat for organisation.
         QString l_category_name = l_child_obj["category"].toString();
         if (!l_category_name.isEmpty()) {
-            m_musicList->insert(l_category_name, {l_category_name, 0});
-            m_ordered_list->append(l_category_name);
+            if (!(f_skip_existing && f_list->contains(l_category_name))) {
+                f_list->insert(l_category_name, {l_category_name, 0});
+                f_ordered->append(l_category_name);
+            }
         }
         else {
             qWarning() << "Category name not set. This may cause the musiclist to be displayed incorrectly.";
         }
 
-        l_child_array = l_child_obj["songs"].toArray();
-        for (int i = 0; i < l_child_array.size(); i++) { // Inner for loop because a category can contain multiple songs.
-            QJsonObject l_song_obj = l_child_array.at(i).toObject();
+        QJsonArray l_child_array = l_child_obj["songs"].toArray();
+        for (int j = 0; j < l_child_array.size(); j++) { // Inner for loop because a category can contain multiple songs.
+            QJsonObject l_song_obj = l_child_array.at(j).toObject();
             QString l_song_name = l_song_obj["name"].toString();
+            if (f_skip_existing && (l_song_name.isEmpty() || f_list->contains(l_song_name))) {
+                continue;
+            }
             QString l_real_name = l_song_obj["realname"].toString();
+            QString l_cdn = l_song_obj["cdn"].toString().trimmed();
+            if (l_real_name.isEmpty() && !l_cdn.isEmpty()) {
+                if (!l_cdn.endsWith('/')) {
+                    l_cdn += '/';
+                }
+                // Encode every path segment, but keep the folder separators.
+                QStringList l_segments = l_song_name.split('/');
+                for (QString &l_segment : l_segments) {
+                    l_segment = QString::fromUtf8(QUrl::toPercentEncoding(l_segment));
+                }
+                l_real_name = l_cdn + "sounds/music/" + l_segments.join('/');
+            }
             if (l_real_name.isEmpty()) {
                 l_real_name = l_song_name;
             }
             int l_song_duration = l_song_obj["length"].toVariant().toInt();
-            m_musicList->insert(l_song_name, {l_real_name, l_song_duration});
-            m_ordered_list->append(l_song_name);
+            f_list->insert(l_song_name, {l_real_name, l_song_duration});
+            f_ordered->append(l_song_name);
         }
     }
+}
+
+MusicList ConfigManager::musiclist()
+{
+    // Make sure the lists are empty before appending new data.
+    m_musicList->clear();
+    m_ordered_list->clear();
+
+    QFile l_music_json("config/music.json");
+    l_music_json.open(QIODevice::ReadOnly | QIODevice::Text);
+
+    QJsonParseError l_error;
+    QJsonDocument l_music_list_json = QJsonDocument::fromJson(l_music_json.readAll(), &l_error);
     l_music_json.close();
+    if (!(l_error.error == QJsonParseError::NoError)) { // Non-Terminating error.
+        qWarning() << "Unable to load musiclist. The following error was encounted : " + l_error.errorString();
+        return QMap<QString, QPair<QString, int>>{}; // Server can still run without music.
+    }
+
+    // Akashi expects the musiclist to be contained in a JSON array, even if its only a single category.
+    appendMusicArray(l_music_list_json.array(), m_musicList, m_ordered_list, false);
+
+    // Songs found on other CDNs by CdnMusicFetcher. Same layout as music.json.
+    QFile l_cdn_cache("config/music_cdn_cache.json");
+    if (l_cdn_cache.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QJsonDocument l_cache_json = QJsonDocument::fromJson(l_cdn_cache.readAll(), &l_error);
+        if (l_error.error == QJsonParseError::NoError) {
+            appendMusicArray(l_cache_json.object().value("music").toArray(), m_musicList, m_ordered_list, true);
+        }
+        else {
+            qWarning() << "Unable to load the CDN music cache:" << l_error.errorString();
+        }
+    }
 
     return *m_musicList;
 }
@@ -740,6 +777,32 @@ QStringList ConfigManager::filterList()
 QStringList ConfigManager::cdnList()
 {
     return m_commands->cdns;
+}
+
+QStringList ConfigManager::musicCdnList()
+{
+    QStringList l_cdns;
+    if (!QFile::exists("config/text/music_cdns.txt")) {
+        return l_cdns; // Optional file. No file means no CDN scanning.
+    }
+    const QStringList l_lines = loadConfigFile("music_cdns");
+    for (const QString &l_line : l_lines) {
+        if (!l_line.isEmpty() && !l_line.startsWith('#')) {
+            l_cdns.append(l_line);
+        }
+    }
+    return l_cdns;
+}
+
+int ConfigManager::cdnMusicRefreshHours()
+{
+    bool ok;
+    int l_hours = m_settings->value("Options/cdn_music_refresh_hours", 24).toInt(&ok);
+    if (!ok || l_hours < 0) {
+        qWarning("cdn_music_refresh_hours is not a valid number!");
+        l_hours = 24;
+    }
+    return l_hours;
 }
 
 bool ConfigManager::publishServerEnabled()
