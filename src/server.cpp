@@ -25,6 +25,7 @@
 #include "db_manager.h"
 #include "discord.h"
 #include "logger/u_logger.h"
+#include "cdn_music_fetcher.h"
 #include "music_manager.h"
 #include "network/network_socket.h"
 #include "packet/packet_factory.h"
@@ -259,6 +260,17 @@ void Server::start()
 
     // Get musiclist from config file
     m_music_list = music_manager->rootMusiclist();
+
+    // Songs from other CDNs are merged in by ConfigManager::musiclist() from the cache.
+    // Whenever a scan finishes, the live musiclist is rebuilt and sent to everyone.
+    m_cdn_music_fetcher = new CdnMusicFetcher(this);
+    connect(m_cdn_music_fetcher, &CdnMusicFetcher::musicListUpdated, this, [this] {
+        music_manager->reloadRequest();
+        m_music_list = music_manager->rootMusiclist();
+        music_manager->broadcastMusicList();
+        qInfo() << "Musiclist updated from CDNs:" << m_music_list.size() << "entries.";
+    });
+    m_cdn_music_fetcher->start();
 
     // Assembles the area list
     m_area_names = ConfigManager::sanitizedAreaNames();
