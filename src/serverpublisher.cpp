@@ -69,7 +69,7 @@ void ServerPublisher::publishServer()
     serverinfo["description"] = ConfigManager::serverDescription();
     const QByteArray payload = QJsonDocument(serverinfo).toJson();
 
-    // Each ms gets its own independent POST for avoiding fucking shit up
+    // Each ms gets its own independent POST for avoiding fucking shit up.
     for (const QUrl &serverlist : serverlists) {
         if (!serverlist.isValid()) {
             qWarning() << "Failed to advertise server. Serverlist URL is not valid. URL:" << serverlist.toString();
