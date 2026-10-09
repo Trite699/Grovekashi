@@ -224,6 +224,34 @@ void AOClient::cmdSpectatable(int argc, QStringList argv)
     arup(ARUPType::LOCKED, true);
 }
 
+void AOClient::cmdIClock(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    AreaData *l_area = server->getAreaById(areaId());
+
+    // A free area becomes spectatable. A locked area stays locked, only the speaking rights change.
+    if (l_area->lockStatus() == AreaData::LockStatus::FREE) {
+        l_area->spectatable();
+    }
+
+    // Only the CMs keep the right to speak in character.
+    const QList<int> l_owners = l_area->owners();
+    const QList<int> l_invited = l_area->invited();
+    for (int l_client_id : l_invited) {
+        if (!l_owners.contains(l_client_id)) {
+            l_area->uninvite(l_client_id);
+        }
+    }
+    for (int l_owner_id : l_owners) {
+        l_area->invite(l_owner_id);
+    }
+
+    sendServerMessageArea("IClock enabled.");
+    arup(ARUPType::LOCKED, true);
+}
+
 void AOClient::cmdUnLock(int argc, QStringList argv)
 {
     Q_UNUSED(argc);
