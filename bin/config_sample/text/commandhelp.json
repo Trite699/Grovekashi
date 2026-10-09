@@ -229,6 +229,13 @@
    },
    {
       "names": [
+         "iclock"
+      ],
+      "usage":"/iclock",
+      "text":"Only CMs may speak in character in the area. A free area becomes spectatable, a locked area stays locked. Use /invite to let others speak again, /unlock to undo. This command takes no arguments."
+   },
+   {
+      "names": [
          "spectatable",
          "area_spectate"
       ],
