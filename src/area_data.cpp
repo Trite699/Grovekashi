@@ -701,11 +701,20 @@ QString AreaData::addJukeboxSong(QString f_song)
         // Retrieve song information.
         QPair<QString, float> l_song = m_music_manager->songInformation(f_song, index());
 
-        if (l_song.second > 0) {
-            if (m_jukebox_queue.size() == 0) {
-
+        // A duration of -1 means the length is unknown (e.g. songs found on a CDN). Those play without a timer.
+        const bool l_untimed = (l_song.second == -1);
+        if (l_song.second > 0 || l_untimed) {
+            // An untimed song never ends by itself, so a newly added song replaces it instead of waiting forever.
+            const bool l_untimed_playing = !m_jukebox_queue.isEmpty() && !m_jukebox_timer->isActive();
+            if (m_jukebox_queue.isEmpty() || l_untimed_playing) {
+                m_jukebox_queue.clear();
                 emit sendAreaPacket(PacketFactory::createPacket("MC", {l_song.first, QString::number(-1)}), index());
-                m_jukebox_timer->start(l_song.second * 1000);
+                if (l_untimed) {
+                    m_jukebox_timer->stop();
+                }
+                else {
+                    m_jukebox_timer->start(l_song.second * 1000);
+                }
                 setCurrentMusic(f_song);
                 setMusicPlayedBy("Jukebox");
             }
@@ -713,7 +722,7 @@ QString AreaData::addJukeboxSong(QString f_song)
             return "Song added to Jukebox.";
         }
         else {
-            return "Unable to add song. Duration shorter than 1.";
+            return "Unable to add song. Duration is 0 or invalid. Use a duration above 0, or -1 for a song of unknown length.";
         }
     }
     return "Unable to add song. Song already in Jukebox.";
@@ -731,7 +740,12 @@ void AreaData::switchJukeboxSong()
         l_song_name = m_jukebox_queue[0];
         QPair<QString, float> l_song = m_music_manager->songInformation(l_song_name, index());
         emit sendAreaPacket(PacketFactory::createPacket("MC", {l_song.first, "-1"}), m_index);
-        m_jukebox_timer->start(l_song.second * 1000);
+        if (l_song.second > 0) {
+            m_jukebox_timer->start(l_song.second * 1000);
+        }
+        else {
+            m_jukebox_timer->stop(); // Untimed (-1) song: plays until someone adds or skips to another one.
+        }
     }
     else {
         int l_random_index = QRandomGenerator::system()->bounded(m_jukebox_queue.size() - 1);
@@ -739,7 +753,12 @@ void AreaData::switchJukeboxSong()
 
         QPair<QString, float> l_song = m_music_manager->songInformation(l_song_name, index());
         emit sendAreaPacket(PacketFactory::createPacket("MC", {l_song.first, "-1"}), m_index);
-        m_jukebox_timer->start(l_song.second * 1000);
+        if (l_song.second > 0) {
+            m_jukebox_timer->start(l_song.second * 1000);
+        }
+        else {
+            m_jukebox_timer->stop(); // Untimed (-1) song: plays until someone adds or skips to another one.
+        }
 
         m_jukebox_queue.remove(l_random_index);
         m_jukebox_queue.squeeze();
