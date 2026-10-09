@@ -889,6 +889,19 @@ class AOClient : public QObject
     void cmdSpectatable(int argc, QStringList argv);
 
     /**
+     * @brief Restricts in-character messages in the area to the CMs.
+     *
+     * @details No arguments. A free area becomes spectatable, a locked area stays locked.
+     * Everyone except the CMs is removed from the invite list, so only CMs may speak in character.
+     * Use /invite to give other people the right to speak again, and /unlock to undo it.
+     *
+     * @iscommand
+     *
+     * @see AreaData::SPECTATABLE
+     */
+    void cmdIClock(int argc, QStringList argv);
+
+    /**
      * @brief Unlocks the area.
      *
      * @details No arguments.
