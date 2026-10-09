@@ -58,6 +58,7 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"area_lock", {{ACLRole::CM}, 0, &AOClient::cmdLock}},
     {"area_spectate", {{ACLRole::CM}, 0, &AOClient::cmdSpectatable}},
     {"area_unlock", {{ACLRole::CM}, 0, &AOClient::cmdUnLock}},
+    {"iclock", {{ACLRole::CM}, 0, &AOClient::cmdIClock}},
     {"timer", {{ACLRole::CM}, 0, &AOClient::cmdTimer}},
     {"area", {{ACLRole::NONE}, 1, &AOClient::cmdArea}},
     {"play", {{ACLRole::NONE}, 1, &AOClient::cmdPlay}},
