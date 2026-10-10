@@ -654,6 +654,20 @@ AreaData *Server::getAreaById(int f_area_id)
     return l_area;
 }
 
+QList<int> Server::getHubAreaIds(const QString &f_hub) const
+{
+    QList<int> l_ids;
+    if (f_hub.isEmpty()) {
+        return l_ids;
+    }
+    for (int i = 0; i < m_areas.length(); i++) {
+        if (m_areas.at(i)->hub().compare(f_hub, Qt::CaseInsensitive) == 0) {
+            l_ids.append(i);
+        }
+    }
+    return l_ids;
+}
+
 QQueue<QString> Server::getAreaBuffer(const QString &f_areaName)
 {
     return logger->buffer(f_areaName);
