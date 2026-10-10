@@ -270,6 +270,15 @@ class Server : public QObject
     AreaData *getAreaById(int f_area_id);
 
     /**
+     * @brief Returns the indices of all areas that belong to a hub.
+     *
+     * @param f_hub The name of the hub, compared case-insensitively.
+     *
+     * @return The area indices in area order, empty if the hub does not exist.
+     */
+    QList<int> getHubAreaIds(const QString &f_hub) const;
+
+    /**
      * @brief Getter for an area specific buffer from the logger.
      */
     QQueue<QString> getAreaBuffer(const QString &f_areaName);
