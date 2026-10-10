@@ -30,6 +30,22 @@ QStringList MusicManager::musiclist(int f_area_id)
     return m_custom_lists->value(f_area_id).keys();
 }
 
+QStringList MusicManager::songList(int f_area_id)
+{
+    static const QStringList l_extensions = {".opus", ".ogg", ".mp3", ".wav"};
+    QStringList l_songs;
+    const QStringList l_all = musiclist(f_area_id);
+    for (const QString &l_entry : l_all) {
+        for (const QString &l_suffix : l_extensions) {
+            if (l_entry.endsWith(l_suffix, Qt::CaseInsensitive)) {
+                l_songs.append(l_entry);
+                break;
+            }
+        }
+    }
+    return l_songs;
+}
+
 QStringList MusicManager::rootMusiclist()
 {
     return m_root_ordered;
