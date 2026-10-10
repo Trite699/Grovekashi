@@ -889,11 +889,59 @@ class AOClient : public QObject
     void cmdSpectatable(int argc, QStringList argv);
 
     /**
-     * @brief Restricts in-character messages in the area to the CMs.
+     * @brief Sets the status of every area in the current area's hub.
      *
-     * @details No arguments. A free area becomes spectatable, a locked area stays locked.
-     * Everyone except the CMs is removed from the invite list, so only CMs may speak in character.
-     * Use /invite to give other people the right to speak again, and /unlock to undo it.
+     * @details Usage: /hubstatus <status>. Hubs are groups of areas that share the same hub= value in areas.ini.
+     *
+     * @iscommand
+     */
+    void cmdHubStatus(int argc, QStringList argv);
+
+    /**
+     * @brief Lists all hubs with their areas and the players in them.
+     *
+     * @details No arguments.
+     *
+     * @iscommand
+     */
+    void cmdGetHubs(int argc, QStringList argv);
+
+    /**
+     * @brief Plays a song in every area of the current area's hub.
+     *
+     * @details Usage: /hubplay <song>.
+     *
+     * @iscommand
+     */
+    void cmdHubPlay(int argc, QStringList argv);
+
+    /**
+     * @brief Plays a random song from the area's music list.
+     *
+     * @details No arguments. Uses the same permissions as /play.
+     *
+     * @iscommand
+     */
+    void cmdShuffleMusic(int argc, QStringList argv);
+
+    /**
+     * @brief Kicks everyone named Soren, or, with a 50% chance, the person who used the command.
+     *
+     * @details Usage: /soren [reason]. Someone counts as Soren if their OOC name, character or showname contains
+     * the word "Soren". Without a reason, the Sorens are kicked with "You have been kicked for being Soren" and
+     * the person who used the command is kicked with "HAHAHA GET KICKED BOZO".
+     *
+     * @iscommand
+     */
+    void cmdSoren(int argc, QStringList argv);
+
+    /**
+     * @brief Toggles /iclock: restricts in-character messages in the area to the CMs.
+     *
+     * @details No arguments. When it is off, it turns on: a free area becomes spectatable, a locked area stays
+     * locked, and everyone except the CMs is removed from the invite list, so only CMs may speak in character.
+     * When it is on, it turns off and the area gets the lock status it had before, with everyone present
+     * able to speak again. Use /invite to let single people speak while it is on.
      *
      * @iscommand
      *
