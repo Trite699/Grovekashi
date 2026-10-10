@@ -23,6 +23,8 @@
 #include "packet/packet_factory.h"
 #include "server.h"
 
+#include <QRandomGenerator>
+
 // This file is for commands under the music category in aoclient.h
 // Be sure to register the command in the header before adding it here!
 
@@ -56,6 +58,82 @@ void AOClient::cmdPlay(int argc, QStringList argv)
     }
     AOPacket *music_change = PacketFactory::createPacket("MC", {l_song, QString::number(server->getCharID(character())), characterName(), "1", "0"});
     server->broadcast(music_change, areaId());
+}
+
+void AOClient::cmdHubPlay(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the music.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    const QString l_hub = l_area->hub();
+    if (l_hub.isEmpty()) {
+        sendServerMessage("This area is not part of a hub.");
+        return;
+    }
+
+    const QString l_song = argv.join(" ");
+    if ((l_song.startsWith("http://", Qt::CaseInsensitive) || l_song.startsWith("https://", Qt::CaseInsensitive)) && !m_music_manager->validateSong(l_song, ConfigManager::cdnList())) {
+        sendServerMessage("The song you tried to play is not from an approved CDN.");
+        return;
+    }
+
+    // Aliased songs (e.g. from a CDN) are sent to the clients under their real name.
+    QString l_real_name = l_song;
+    if (l_song != "~stop.mp3") {
+        const QString l_resolved = m_music_manager->songInformation(l_song, areaId()).first;
+        if (!l_resolved.isEmpty()) {
+            l_real_name = l_resolved;
+        }
+    }
+
+    const QString l_source = characterName().isEmpty() ? character() : characterName();
+    const QList<int> l_hub_areas = server->getHubAreaIds(l_hub);
+    for (int l_id : l_hub_areas) {
+        server->getAreaById(l_id)->changeMusic(l_source, l_song);
+        server->broadcast(PacketFactory::createPacket("MC", {l_real_name, QString::number(server->getCharID(character())), characterName(), "1", "0"}), l_id);
+    }
+}
+
+void AOClient::cmdShuffleMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the music.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    const ACLRole l_role = server->getACLRolesHandler()->getRoleById(m_acl_role_id);
+    if (!l_area->owners().contains(clientId()) && !l_area->isPlayEnabled() && !l_role.checkPermission(ACLRole::CM)) {
+        sendServerMessage("Free music play is disabled in this area.");
+        return;
+    }
+
+    const QStringList l_songs = m_music_manager->songList(areaId());
+    if (l_songs.isEmpty()) {
+        sendServerMessage("There are no songs in this area's music list.");
+        return;
+    }
+    const QString l_song = l_songs.at(QRandomGenerator::global()->bounded(l_songs.size()));
+
+    if (l_area->isjukeboxEnabled()) {
+        sendServerMessage("Shuffled " + l_song + ". " + l_area->addJukeboxSong(l_song));
+        return;
+    }
+
+    const QString l_source = characterName().isEmpty() ? character() : characterName();
+    l_area->changeMusic(l_source, l_song);
+    QString l_real_name = m_music_manager->songInformation(l_song, areaId()).first;
+    if (l_real_name.isEmpty()) {
+        l_real_name = l_song;
+    }
+    server->broadcast(PacketFactory::createPacket("MC", {l_real_name, QString::number(server->getCharID(character())), characterName(), "1", "0"}), areaId());
+    sendServerMessageArea(l_source + " shuffled the music: " + l_song);
 }
 
 void AOClient::cmdPlayAmbience(int argc, QStringList argv)
