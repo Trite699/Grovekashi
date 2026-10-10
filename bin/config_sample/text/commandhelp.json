@@ -232,7 +232,42 @@
          "iclock"
       ],
       "usage":"/iclock",
-      "text":"Only CMs may speak in character in the area. A free area becomes spectatable, a locked area stays locked. Use /invite to let others speak again, /unlock to undo. This command takes no arguments."
+      "text":"Toggles IClock. When enabled, only CMs may speak in character in the area. Running it again disables it and restores the area to how it was before. Use /invite to let single people speak while it is on. This command takes no arguments."
+   },
+   {
+      "names": [
+         "hubstatus"
+      ],
+      "usage":"/hubstatus <status>",
+      "text":"Sets the status of every area in your area's hub. Hubs are groups of areas that share the same hub= value in areas.ini."
+   },
+   {
+      "names": [
+         "gethubs"
+      ],
+      "usage":"/gethubs",
+      "text":"Lists all hubs with their areas and the players in them. This command takes no arguments."
+   },
+   {
+      "names": [
+         "hubplay"
+      ],
+      "usage":"/hubplay <song>",
+      "text":"Plays a song in every area of your area's hub."
+   },
+   {
+      "names": [
+         "shufflemusic"
+      ],
+      "usage":"/shufflemusic",
+      "text":"Plays a random song from the area's music list. This command takes no arguments."
+   },
+   {
+      "names": [
+         "soren"
+      ],
+      "usage":"/soren [reason]",
+      "text":"Kicks everyone named Soren (OOC name, character or showname) with an optional reason. There is a 50% chance that it kicks you instead."
    },
    {
       "names": [
