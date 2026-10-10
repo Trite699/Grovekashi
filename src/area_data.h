@@ -357,6 +357,23 @@ class AreaData : public QObject
     void spectatable();
 
     /**
+     * @brief Returns true if /iclock is currently enabled in this area.
+     */
+    bool iclockEnabled() const;
+
+    /**
+     * @brief Enables /iclock and remembers the lock status the area had before.
+     *
+     * @details Any later call to lock(), unlock() or spectatable() switches /iclock off again.
+     */
+    void enableIClock(LockStatus f_previous_status);
+
+    /**
+     * @brief Switches /iclock off and returns the lock status the area had before it was enabled.
+     */
+    LockStatus disableIClock();
+
+    /**
      * @brief Returns the amount of players in the area.
      *
      * @return See short description.
@@ -635,6 +652,13 @@ class AreaData : public QObject
      * @see #m_area_message
      */
     QString areaMessage() const;
+
+    /**
+     * @brief Returns the name of the hub this area belongs to, as set with hub= in areas.ini.
+     *
+     * @return The hub name, or an empty string if the area is not part of a hub.
+     */
+    QString hub() const;
 
     /**
      * @brief Returns if the area's message should be sent when a user joins the area.
@@ -1113,6 +1137,16 @@ class AreaData : public QObject
     LockStatus m_locked;
 
     /**
+     * @brief True while /iclock is enabled in the area.
+     */
+    bool m_iclock = false;
+
+    /**
+     * @brief The lock status the area had when /iclock was enabled.
+     */
+    LockStatus m_iclock_previous_status = FREE;
+
+    /**
      * @brief The background of the area.
      *
      * @details Represents a directory's name in `base/background/` clientside.
@@ -1161,6 +1195,11 @@ class AreaData : public QObject
      * RP or guidance for players joining the area. Unlike document it can be sent on area join. Like a MOTD, but for the area.
      */
     QString m_area_message;
+
+    /**
+     * @brief The hub this area belongs to. Areas that share the same name form one hub.
+     */
+    QString m_hub;
 
     /**
      * @brief The Confidence Gauge's value for the Defence side.
