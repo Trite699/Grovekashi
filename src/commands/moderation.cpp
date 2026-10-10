@@ -22,6 +22,8 @@
 #include "config_manager.h"
 #include "db_manager.h"
 #include "server.h"
+#include <QRandomGenerator>
+#include <QRegularExpression>
 
 // This file is for commands under the moderation category in aoclient.h
 // Be sure to register the command in the header before adding it here!
@@ -129,6 +131,52 @@ void AOClient::cmdKick(int argc, QStringList argv)
     }
     else
         sendServerMessage("User with ipid not found!");
+}
+
+void AOClient::cmdSoren(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    const QString l_given_reason = argv.join(" ").trimmed();
+
+    // Anyone whose OOC name, character or showname contains the word "Soren".
+    static const QRegularExpression l_soren_regex("\\bsoren\\b", QRegularExpression::CaseInsensitiveOption);
+    QList<AOClient *> l_sorens;
+    const QVector<AOClient *> l_clients = server->getClients();
+    for (AOClient *l_client : l_clients) {
+        if (l_soren_regex.match(l_client->name()).hasMatch() || l_soren_regex.match(l_client->character()).hasMatch() || l_soren_regex.match(l_client->characterName()).hasMatch()) {
+            l_sorens.append(l_client);
+        }
+    }
+    if (l_sorens.isEmpty()) {
+        sendServerMessage("There is nobody named Soren here.");
+        return;
+    }
+
+    // 50/50: either the Sorens get kicked, or the person who used the command does.
+    const bool l_backfire = QRandomGenerator::global()->bounded(2) == 0;
+    QList<AOClient *> l_targets;
+    QString l_reason = l_given_reason;
+    if (l_backfire) {
+        l_targets.append(this);
+        if (l_reason.isEmpty()) {
+            l_reason = "HAHAHA GET KICKED BOZO";
+        }
+        sendServerMessage("The coin landed against you. You are being kicked instead.");
+    }
+    else {
+        l_targets = l_sorens;
+        if (l_reason.isEmpty()) {
+            l_reason = "You have been kicked for being Soren";
+        }
+        sendServerMessage("Kicked " + QString::number(l_targets.size()) + " Soren(s) for reason: " + l_reason);
+    }
+
+    const QString l_moderator = (ConfigManager::authType() == DataTypes::AuthType::ADVANCED) ? m_moderator_name : QStringLiteral("Moderator");
+    for (AOClient *l_target : qAsConst(l_targets)) {
+        emit logKick(l_moderator, l_target->getIpid(), l_reason);
+        l_target->sendPacket("KK", {l_reason});
+        l_target->m_socket->close();
+    }
 }
 
 void AOClient::cmdMods(int argc, QStringList argv)
