@@ -231,8 +231,41 @@ void AOClient::cmdIClock(int argc, QStringList argv)
 
     AreaData *l_area = server->getAreaById(areaId());
 
+    if (l_area->iclockEnabled()) {
+        // Switch it off again and restore the lock status the area had before.
+        const AreaData::LockStatus l_previous = l_area->disableIClock();
+        switch (l_previous) {
+        case AreaData::LockStatus::LOCKED:
+            l_area->lock();
+            break;
+        case AreaData::LockStatus::SPECTATABLE:
+            l_area->spectatable();
+            break;
+        case AreaData::LockStatus::FREE:
+        default:
+            l_area->unlock();
+            break;
+        }
+
+        // Everybody who is in the area right now keeps access and the right to speak.
+        if (l_previous != AreaData::LockStatus::FREE) {
+            const QVector<AOClient *> l_clients = server->getClients();
+            for (AOClient *l_client : l_clients) {
+                if (l_client->areaId() == areaId() && l_client->hasJoined()) {
+                    l_area->invite(l_client->clientId());
+                }
+            }
+        }
+
+        sendServerMessageArea("IClock disabled.");
+        arup(ARUPType::LOCKED, true);
+        return;
+    }
+
+    const AreaData::LockStatus l_previous = l_area->lockStatus();
+
     // A free area becomes spectatable. A locked area stays locked, only the speaking rights change.
-    if (l_area->lockStatus() == AreaData::LockStatus::FREE) {
+    if (l_previous == AreaData::LockStatus::FREE) {
         l_area->spectatable();
     }
 
@@ -248,6 +281,7 @@ void AOClient::cmdIClock(int argc, QStringList argv)
         l_area->invite(l_owner_id);
     }
 
+    l_area->enableIClock(l_previous);
     sendServerMessageArea("IClock enabled.");
     arup(ARUPType::LOCKED, true);
 }
@@ -265,6 +299,70 @@ void AOClient::cmdUnLock(int argc, QStringList argv)
     sendServerMessageArea("This area is now unlocked.");
     l_area->unlock();
     arup(ARUPType::LOCKED, true);
+}
+
+void AOClient::cmdHubStatus(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    AreaData *l_area = server->getAreaById(areaId());
+    const QString l_hub = l_area->hub();
+    if (l_hub.isEmpty()) {
+        sendServerMessage("This area is not part of a hub.");
+        return;
+    }
+
+    const QString l_arg = argv[0].toLower();
+    if (!AreaData::map_statuses.contains(l_arg)) {
+        const QStringList keys = AreaData::map_statuses.keys();
+        sendServerMessage("That does not look like a valid status. Valid statuses are " + keys.join(", "));
+        return;
+    }
+
+    const QList<int> l_hub_areas = server->getHubAreaIds(l_hub);
+    for (int l_id : l_hub_areas) {
+        server->getAreaById(l_id)->changeStatus(l_arg);
+        server->broadcast(PacketFactory::createPacket("CT", {ConfigManager::serverNickname(), character() + " changed the status of the hub " + l_hub + " to " + l_arg.toUpper(), "1"}), l_id);
+    }
+    arup(ARUPType::STATUS, true);
+}
+
+void AOClient::cmdGetHubs(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    // Collect the hubs in the order of their first area.
+    QStringList l_hubs;
+    for (int i = 0; i < server->getAreaCount(); i++) {
+        const QString l_hub = server->getAreaById(i)->hub();
+        if (!l_hub.isEmpty() && !l_hubs.contains(l_hub, Qt::CaseInsensitive)) {
+            l_hubs.append(l_hub);
+        }
+    }
+    if (l_hubs.isEmpty()) {
+        sendServerMessage("There are no hubs on this server.");
+        return;
+    }
+
+    QStringList l_entries;
+    for (const QString &l_hub : qAsConst(l_hubs)) {
+        const QList<int> l_ids = server->getHubAreaIds(l_hub);
+        int l_players = 0;
+        for (int l_id : l_ids) {
+            l_players += server->getAreaById(l_id)->playerCount();
+        }
+        l_entries.append("\n==== HUB: " + l_hub + " [" + QString::number(l_players) + " users] ====");
+        for (int l_id : l_ids) {
+            if (server->getAreaById(l_id)->playerCount() > 0) {
+                l_entries.append(buildAreaList(l_id));
+            }
+            else {
+                l_entries.append("=== " + server->getAreaName(l_id) + " === [0 users]");
+            }
+        }
+    }
+    sendServerMessage(l_entries.join("\n"));
 }
 
 void AOClient::cmdGetAreas(int argc, QStringList argv)
