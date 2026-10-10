@@ -53,6 +53,7 @@ AreaData::AreaData(QString p_name, int p_index, MusicManager *p_music_manager = 
     QSettings *areas_ini = ConfigManager::areaData();
     areas_ini->beginGroup(p_name);
     m_background = areas_ini->value("background", "gs4").toString();
+    m_hub = areas_ini->value("hub", "").toString().trimmed();
     m_isProtected = areas_ini->value("protected_area", "false").toBool();
     m_iniswapAllowed = areas_ini->value("iniswap_allowed", "true").toBool();
     m_bgLocked = areas_ini->value("bg_locked", "false").toBool();
@@ -140,6 +141,7 @@ bool AreaData::removeOwner(int f_clientId)
 
     if (m_owners.isEmpty() && m_locked != AreaData::FREE) {
         m_locked = AreaData::FREE;
+        m_iclock = false;
         return true;
     }
 
@@ -184,16 +186,36 @@ bool AreaData::isPlayEnabled() const
 void AreaData::lock()
 {
     m_locked = LockStatus::LOCKED;
+    m_iclock = false;
 }
 
 void AreaData::unlock()
 {
     m_locked = LockStatus::FREE;
+    m_iclock = false;
 }
 
 void AreaData::spectatable()
 {
     m_locked = LockStatus::SPECTATABLE;
+    m_iclock = false;
+}
+
+bool AreaData::iclockEnabled() const
+{
+    return m_iclock;
+}
+
+void AreaData::enableIClock(LockStatus f_previous_status)
+{
+    m_iclock = true;
+    m_iclock_previous_status = f_previous_status;
+}
+
+AreaData::LockStatus AreaData::disableIClock()
+{
+    m_iclock = false;
+    return m_iclock_previous_status;
 }
 
 bool AreaData::invite(int f_clientId)
@@ -330,6 +352,11 @@ bool AreaData::changeStatus(const QString &f_newStatus_r)
     }
 
     return false;
+}
+
+QString AreaData::hub() const
+{
+    return m_hub;
 }
 
 QList<int> AreaData::invited() const
