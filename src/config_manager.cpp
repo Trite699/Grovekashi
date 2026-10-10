@@ -228,6 +228,88 @@ static void appendMusicArray(const QJsonArray &f_array, MusicList *f_list, QStri
     }
 }
 
+/**
+ * @brief Adds the songs of the CDN cache to the music list, sorted into categories by their folder.
+ *
+ * @details A song called "Ace Attorney/Prelude/[AA] Prelude.opus" ends up in the category "== Prelude ==", exactly
+ * like a category written in music.json. If music.json already has a category of that name, the songs are placed
+ * at the end of that category, otherwise a new category is created. Songs whose name is already taken are skipped,
+ * so music.json always wins over the CDN cache.
+ */
+static void appendCdnCache(const QJsonArray &f_cache, MusicList *f_list, QStringList *f_ordered)
+{
+    // Every entry of the ordered list that is a category header, music.json categories first.
+    QSet<QString> l_categories;
+    for (const QString &l_entry : qAsConst(*f_ordered)) {
+        const auto l_info = f_list->value(l_entry);
+        if (l_info.second == 0 && l_info.first == l_entry) {
+            l_categories.insert(l_entry);
+        }
+    }
+
+    // Group the cached songs by folder, keeping the order in which folders first appear.
+    QStringList l_new_category_order;
+    QMap<QString, QList<QPair<QString, QPair<QString, int>>>> l_grouped;
+    for (const QJsonValue &l_category_value : f_cache) {
+        const QJsonArray l_songs = l_category_value.toObject().value("songs").toArray();
+        for (const QJsonValue &l_song_value : l_songs) {
+            const QJsonObject l_song_obj = l_song_value.toObject();
+            const QString l_song_name = l_song_obj["name"].toString();
+            if (l_song_name.isEmpty() || f_list->contains(l_song_name)) {
+                continue;
+            }
+
+            QString l_cdn = l_song_obj["cdn"].toString().trimmed();
+            QString l_real_name = l_song_obj["realname"].toString();
+            if (l_real_name.isEmpty() && !l_cdn.isEmpty()) {
+                if (!l_cdn.endsWith('/')) {
+                    l_cdn += '/';
+                }
+                QStringList l_segments = l_song_name.split('/');
+                for (QString &l_segment : l_segments) {
+                    l_segment = QString::fromUtf8(QUrl::toPercentEncoding(l_segment));
+                }
+                l_real_name = l_cdn + "sounds/music/" + l_segments.join('/');
+            }
+            if (l_real_name.isEmpty()) {
+                l_real_name = l_song_name;
+            }
+
+            const QStringList l_path = l_song_name.split('/');
+            const QString l_folder = l_path.size() > 1 ? l_path.at(l_path.size() - 2) : QStringLiteral("Uncategorized");
+            const QString l_category = "== " + l_folder + " ==";
+            if (!l_grouped.contains(l_category)) {
+                l_new_category_order.append(l_category);
+            }
+            l_grouped[l_category].append({l_song_name, {l_real_name, l_song_obj["length"].toVariant().toInt()}});
+        }
+    }
+
+    for (const QString &l_category : qAsConst(l_new_category_order)) {
+        int l_insert_at = f_ordered->size();
+        if (l_categories.contains(l_category)) {
+            // Existing category: insert behind its last song, before the next category header.
+            const int l_header = f_ordered->indexOf(l_category);
+            l_insert_at = l_header + 1;
+            while (l_insert_at < f_ordered->size() && !l_categories.contains(f_ordered->at(l_insert_at))) {
+                l_insert_at++;
+            }
+        }
+        else {
+            f_list->insert(l_category, {l_category, 0});
+            f_ordered->append(l_category);
+            l_categories.insert(l_category);
+            l_insert_at = f_ordered->size();
+        }
+
+        const auto &l_songs = l_grouped[l_category];
+        for (const auto &l_song : l_songs) {
+            f_list->insert(l_song.first, l_song.second);
+            f_ordered->insert(l_insert_at++, l_song.first);
+        }
+    }
+}
+
 MusicList ConfigManager::musiclist()
 {
     // Make sure the lists are empty before appending new data.
@@ -253,7 +335,7 @@ MusicList ConfigManager::musiclist()
     if (l_cdn_cache.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QJsonDocument l_cache_json = QJsonDocument::fromJson(l_cdn_cache.readAll(), &l_error);
         if (l_error.error == QJsonParseError::NoError) {
-            appendMusicArray(l_cache_json.object().value("music").toArray(), m_musicList, m_ordered_list, true);
+            appendCdnCache(l_cache_json.object().value("music").toArray(), m_musicList, m_ordered_list);
         }
         else {
             qWarning() << "Unable to load the CDN music cache:" << l_error.errorString();
