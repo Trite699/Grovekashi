@@ -53,6 +53,15 @@ class MusicManager : public QObject
     QStringList musiclist(int f_area_id);
 
     /**
+     * @brief Returns only the playable songs of the area's musiclist, without category headers.
+     *
+     * @param f_area_id The area whose list is used, including its custom songs.
+     *
+     * @return The song names.
+     */
+    QStringList songList(int f_area_id);
+
+    /**
      * @brief Returns only the root musiclist with aliased names.
      *
      */
