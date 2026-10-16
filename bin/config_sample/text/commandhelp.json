@@ -229,6 +229,119 @@
    },
    {
       "names": [
+         "whitelist",
+         "wl"
+      ],
+      "usage":"/whitelist <discord username>",
+      "text":"Asks to be whitelisted through Discord. A button is posted for you in the whitelist channel of the Discord server, press it to be whitelisted. Until then you cannot chat, change music or areas."
+   },
+   {
+      "names": [
+         "addarea"
+      ],
+      "usage":"/addarea [name]",
+      "text":"Creates a new area in your hub. Without a name it is called \"Area N\". A hub can have 100 created areas. Everybody sees the new area in their area list."
+   },
+   {
+      "names": [
+         "addareas"
+      ],
+      "usage":"/addareas <amount>",
+      "text":"Creates several new areas in your hub at once, called \"Area N\"."
+   },
+   {
+      "names": [
+         "removearea"
+      ],
+      "usage":"/removearea",
+      "text":"Removes the area you are in, if it was created with /addarea or /loadhub. Everybody inside is moved to the first area of the hub. This command takes no arguments."
+   },
+   {
+      "names": [
+         "rename"
+      ],
+      "usage":"/rename <name>",
+      "text":"Renames the area you are in, which has to be part of a hub. Names can have letters, numbers and : ! - ? and spaces, up to 25 characters."
+   },
+   {
+      "names": [
+         "clearhub"
+      ],
+      "usage":"/clearhub",
+      "text":"Removes all areas that were created in your hub, and all connections and move times. This command takes no arguments."
+   },
+   {
+      "names": [
+         "savehub"
+      ],
+      "usage":"/savehub <name>",
+      "text":"Saves the areas created in your hub, with their connections and move times, so /loadhub can bring them back later."
+   },
+   {
+      "names": [
+         "loadhub"
+      ],
+      "usage":"/loadhub <name>",
+      "text":"Replaces the areas created in your hub with a hub you saved before with /savehub."
+   },
+   {
+      "names": [
+         "connect"
+      ],
+      "usage":"/connect <area id or name>...",
+      "text":"Lets players walk from this area to other areas of the hub. As soon as an area has a connection, players can only leave it towards its connections. CMs and moderators are exempt."
+   },
+   {
+      "names": [
+         "biconnect"
+      ],
+      "usage":"/biconnect <area id or name>...",
+      "text":"Like /connect, but the other areas are connected back to this area too."
+   },
+   {
+      "names": [
+         "disconnect"
+      ],
+      "usage":"/disconnect <area id or name>...",
+      "text":"Removes connections from this area to the given areas."
+   },
+   {
+      "names": [
+         "bidisconnect"
+      ],
+      "usage":"/bidisconnect <area id or name>...",
+      "text":"Like /disconnect, but removes the connections back to this area too."
+   },
+   {
+      "names": [
+         "connectlist"
+      ],
+      "usage":"/connectlist",
+      "text":"Shows which areas this area is connected to. This command takes no arguments."
+   },
+   {
+      "names": [
+         "clearconnect"
+      ],
+      "usage":"/clearconnect",
+      "text":"Removes all connections of this area. This command takes no arguments."
+   },
+   {
+      "names": [
+         "hubclearconnect"
+      ],
+      "usage":"/hubclearconnect",
+      "text":"Removes all connections of all areas in your hub. This command takes no arguments."
+   },
+   {
+      "names": [
+         "movetime"
+      ],
+      "usage":"/movetime [seconds]",
+      "text":"Shows how many seconds players have to wait before entering this area. CMs can set it (0 turns it off). The first try to enter starts the wait, entering again afterwards works."
+   },
+   {
+      "names": [
          "iclock"
       ],
       "usage":"/iclock",
