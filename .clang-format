@@ -19,5 +19,3 @@ EmptyLineBeforeAccessModifier: Always
 FixNamespaceComments: false
 IndentWidth: 4
 PackConstructorInitializers: CurrentLine
-AccessModifierOffset: -4
-AllowShortBlocksOnASingleLine: Empty
