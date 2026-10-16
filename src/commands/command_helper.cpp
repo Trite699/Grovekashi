@@ -64,6 +64,8 @@ QStringList AOClient::buildAreaList(int area_idx)
                 char_entry.insert(0, "[CM] ");
             if (m_authenticated)
                 char_entry += " (" + l_client->getIpid() + "): " + l_client->name();
+            if (!l_client->m_discord_name.isEmpty())
+                char_entry += " [" + l_client->m_discord_name + "]";
             entries.append(char_entry);
         }
     }
