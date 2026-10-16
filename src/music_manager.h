@@ -32,7 +32,7 @@ class MusicManager : public QObject
 {
     Q_OBJECT
 
-public:
+  public:
     /**
      * @brief Constructor for the server-wide musiclist manager.
      *
@@ -170,7 +170,8 @@ public:
      */
     void broadcastMusicList();
 
-public slots:
+  public slots:
+
     /**
      * @brief Updates the root musiclist and CDN list.
      */
@@ -181,7 +182,8 @@ public slots:
      */
     void userJoinedArea(int f_area_index, int f_user_id);
 
-signals:
+  signals:
+
     /**
      * @brief Sends the FM packet with the musiclist of the area when a client enters.
      *
@@ -200,7 +202,7 @@ signals:
      */
     void sendAreaFMPacket(AOPacket *f_packet, int f_area_index);
 
-private:
+  private:
     /**
      * @brief Contains all custom lists of all areas in the server.
      */
