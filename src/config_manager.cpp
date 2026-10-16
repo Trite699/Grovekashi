@@ -677,6 +677,58 @@ int ConfigManager::packetRateLimitHard()
     return l_limit;
 }
 
+bool ConfigManager::whitelistEnabled()
+{
+    return m_settings->value("Whitelist/enabled", false).toBool();
+}
+
+QString ConfigManager::whitelistToken()
+{
+    return m_settings->value("Whitelist/token", "").toString().trimmed();
+}
+
+QString ConfigManager::whitelistChannel()
+{
+    return m_settings->value("Whitelist/channel", "").toString().trimmed();
+}
+
+QString ConfigManager::whitelistTrustLevel()
+{
+    const QString l_level = m_settings->value("Whitelist/trust_level", "low").toString().trimmed().toLower();
+    if (l_level == "medium" || l_level == "high") {
+        return l_level;
+    }
+    return "low";
+}
+
+int ConfigManager::whitelistPromptTimeout()
+{
+    bool ok;
+    int l_timeout = m_settings->value("Whitelist/prompt_timeout", 120).toInt(&ok);
+    if (!ok || l_timeout < 5) {
+        return 120;
+    }
+    return l_timeout;
+}
+
+QString ConfigManager::whitelistApiUrl()
+{
+    QString l_url = m_settings->value("Whitelist/api_url", "https://discord.com/api/v10").toString().trimmed();
+    while (l_url.endsWith('/')) {
+        l_url.chop(1);
+    }
+    return l_url;
+}
+
+QString ConfigManager::whitelistGatewayUrl()
+{
+    QString l_url = m_settings->value("Whitelist/gateway_url", "wss://gateway.discord.gg").toString().trimmed();
+    while (l_url.endsWith('/')) {
+        l_url.chop(1);
+    }
+    return l_url;
+}
+
 QUrl ConfigManager::assetUrl()
 {
     QByteArray l_url = m_settings->value("Options/asset_url", "").toString().toUtf8();
