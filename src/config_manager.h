@@ -134,6 +134,45 @@ class ConfigManager
     static QString serverName();
 
     /**
+     * @brief Returns true if the Discord whitelist is enabled in the [Whitelist] section.
+     */
+    static bool whitelistEnabled();
+
+    /**
+     * @brief Returns the token of the Discord bot that handles whitelist requests.
+     */
+    static QString whitelistToken();
+
+    /**
+     * @brief Returns the ID of the Discord channel the whitelist prompts are posted in.
+     */
+    static QString whitelistChannel();
+
+    /**
+     * @brief Returns how returning players are treated: "low", "medium" or "high".
+     *
+     * @details "low" makes everybody whitelist every time they join. "medium" lets a new client in without
+     * asking if another client with the same IPID is already whitelisted. "high" additionally remembers
+     * whitelisted Discord names and their IPIDs in config/trusted_users.json.
+     */
+    static QString whitelistTrustLevel();
+
+    /**
+     * @brief Returns the seconds a whitelist prompt in Discord stays valid.
+     */
+    static int whitelistPromptTimeout();
+
+    /**
+     * @brief Returns the base URL of the Discord REST API.
+     */
+    static QString whitelistApiUrl();
+
+    /**
+     * @brief Returns the URL of the Discord gateway.
+     */
+    static QString whitelistGatewayUrl();
+
+    /**
      * @brief Returns the server's nickname.
      */
     static QString serverNickname();
