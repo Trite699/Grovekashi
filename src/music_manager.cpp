@@ -62,6 +62,43 @@ bool MusicManager::registerArea(int f_area_id)
     return true;
 }
 
+void MusicManager::unregisterArea(int f_area_id)
+{
+    // Everything that is stored per area index has to move down by one behind the removed area.
+    QHash<int, MusicList> l_custom_lists;
+    for (auto l_it = m_custom_lists->begin(); l_it != m_custom_lists->end(); ++l_it) {
+        if (l_it.key() < f_area_id) {
+            l_custom_lists.insert(l_it.key(), l_it.value());
+        }
+        else if (l_it.key() > f_area_id) {
+            l_custom_lists.insert(l_it.key() - 1, l_it.value());
+        }
+    }
+    *m_custom_lists = l_custom_lists;
+
+    QMap<int, QStringList> l_customs_ordered;
+    for (auto l_it = m_customs_ordered.begin(); l_it != m_customs_ordered.end(); ++l_it) {
+        if (l_it.key() < f_area_id) {
+            l_customs_ordered.insert(l_it.key(), l_it.value());
+        }
+        else if (l_it.key() > f_area_id) {
+            l_customs_ordered.insert(l_it.key() - 1, l_it.value());
+        }
+    }
+    m_customs_ordered = l_customs_ordered;
+
+    QHash<int, bool> l_global_enabled;
+    for (auto l_it = m_global_enabled.begin(); l_it != m_global_enabled.end(); ++l_it) {
+        if (l_it.key() < f_area_id) {
+            l_global_enabled.insert(l_it.key(), l_it.value());
+        }
+        else if (l_it.key() > f_area_id) {
+            l_global_enabled.insert(l_it.key() - 1, l_it.value());
+        }
+    }
+    m_global_enabled = l_global_enabled;
+}
+
 bool MusicManager::validateSong(QString f_song_name, QStringList f_approved_cdns)
 {
     const QStringList l_extensions = {".opus", ".ogg", ".mp3", ".wav"};
