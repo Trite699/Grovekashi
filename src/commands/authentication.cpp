@@ -20,6 +20,7 @@
 #include "config_manager.h"
 #include "crypto_helper.h"
 #include "db_manager.h"
+#include "discord_whitelist.h"
 #include "server.h"
 
 // This file is for commands under the authentication category in aoclient.h
@@ -245,4 +246,29 @@ void AOClient::cmdChangePassword(int argc, QStringList argv)
         sendServerMessage("There was an error changing the password.");
         return;
     }
+}
+
+void AOClient::cmdWhitelist(int argc, QStringList argv)
+{
+    if (!server->whitelistActive()) {
+        sendServerMessage("Whitelist is not enabled on this server!");
+        return;
+    }
+    if (m_whitelisted) {
+        sendServerMessage("You have already been whitelisted!");
+        return;
+    }
+    if (m_whitelist_requested) {
+        sendServerMessage("You cannot ask to whitelist again. Rejoin!");
+        return;
+    }
+    if (argc == 0) {
+        sendServerMessage("You must specify a discord username.");
+        return;
+    }
+
+    m_discord_name = argv.join(" ").trimmed().toLower();
+    m_whitelist_requested = true;
+    server->whitelistBot()->requestWhitelist(this, m_discord_name);
+    sendServerMessage("Whitelist request sent! Please wait for a moment.");
 }
