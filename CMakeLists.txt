@@ -13,6 +13,7 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Core Network WebSockets Sql)
 qt_standard_project_setup()
 qt_add_executable(akashi
   src/commands/area.cpp
+  src/commands/hub.cpp
   src/commands/authentication.cpp
   src/commands/casing.cpp
   src/commands/command_helper.cpp
@@ -96,6 +97,8 @@ qt_add_executable(akashi
   src/db_manager.h
   src/discord.cpp
   src/discord.h
+  src/discord_whitelist.cpp
+  src/discord_whitelist.h
   src/main.cpp
   src/medieval_parser.cpp
   src/medieval_parser.h
