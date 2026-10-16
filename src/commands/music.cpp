@@ -1,0 +1,348 @@
+//////////////////////////////////////////////////////////////////////////////////////
+//    akashi - a server for Attorney Online 2                                       //
+//    Copyright (C) 2020  scatterflower                                             //
+//                                                                                  //
+//    This program is free software: you can redistribute it and/or modify          //
+//    it under the terms of the GNU Affero General Public License as                //
+//    published by the Free Software Foundation, either version 3 of the            //
+//    License, or (at your option) any later version.                               //
+//                                                                                  //
+//    This program is distributed in the hope that it will be useful,               //
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of                //
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the                 //
+//    GNU Affero General Public License for more details.                           //
+//                                                                                  //
+//    You should have received a copy of the GNU Affero General Public License      //
+//    along with this program.  If not, see <https://www.gnu.org/licenses/>.        //
+//////////////////////////////////////////////////////////////////////////////////////
+#include "aoclient.h"
+
+#include "area_data.h"
+#include "config_manager.h"
+#include "music_manager.h"
+#include "packet/packet_factory.h"
+#include "server.h"
+
+#include <QRandomGenerator>
+
+// This file is for commands under the music category in aoclient.h
+// Be sure to register the command in the header before adding it here!
+
+void AOClient::cmdPlay(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    QString l_song = argv.join(" ");
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the music.");
+        return;
+    }
+    if (l_song == "sin.mp3") {
+        m_socket->close();
+        return;
+    }
+    if ((l_song.startsWith("http://", Qt::CaseInsensitive) || l_song.startsWith("https://", Qt::CaseInsensitive)) && !m_music_manager->validateSong(l_song, ConfigManager::cdnList())) {
+        sendServerMessage("The song you tried to play is not from an approved CDN.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    const ACLRole l_role = server->getACLRolesHandler()->getRoleById(m_acl_role_id);
+    if (!l_area->owners().contains(clientId()) && !l_area->isPlayEnabled() && !l_role.checkPermission(ACLRole::CM)) { // Make sure we have permission to play music
+        sendServerMessage("Free music play is disabled in this area.");
+        return;
+    }
+    if (characterName().isEmpty()) {
+        l_area->changeMusic(character(), l_song);
+    }
+    else {
+        l_area->changeMusic(characterName(), l_song);
+    }
+    AOPacket *music_change = PacketFactory::createPacket("MC", {l_song, QString::number(server->getCharID(character())), characterName(), "1", "0"});
+    server->broadcast(music_change, areaId());
+}
+
+void AOClient::cmdHubPlay(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the music.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    const QString l_hub = l_area->hub();
+    if (l_hub.isEmpty()) {
+        sendServerMessage("This area is not part of a hub.");
+        return;
+    }
+
+    const QString l_song = argv.join(" ");
+    if ((l_song.startsWith("http://", Qt::CaseInsensitive) || l_song.startsWith("https://", Qt::CaseInsensitive)) && !m_music_manager->validateSong(l_song, ConfigManager::cdnList())) {
+        sendServerMessage("The song you tried to play is not from an approved CDN.");
+        return;
+    }
+
+    // Aliased songs (e.g. from a CDN) are sent to the clients under their real name.
+    QString l_real_name = l_song;
+    if (l_song != "~stop.mp3") {
+        const QString l_resolved = m_music_manager->songInformation(l_song, areaId()).first;
+        if (!l_resolved.isEmpty()) {
+            l_real_name = l_resolved;
+        }
+    }
+
+    const QString l_source = characterName().isEmpty() ? character() : characterName();
+    const QList<int> l_hub_areas = server->getHubAreaIds(l_hub);
+    for (int l_id : l_hub_areas) {
+        server->getAreaById(l_id)->changeMusic(l_source, l_song);
+        server->broadcast(PacketFactory::createPacket("MC", {l_real_name, QString::number(server->getCharID(character())), characterName(), "1", "0"}), l_id);
+    }
+}
+
+void AOClient::cmdShuffleMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the music.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    const ACLRole l_role = server->getACLRolesHandler()->getRoleById(m_acl_role_id);
+    if (!l_area->owners().contains(clientId()) && !l_area->isPlayEnabled() && !l_role.checkPermission(ACLRole::CM)) {
+        sendServerMessage("Free music play is disabled in this area.");
+        return;
+    }
+
+    const QStringList l_songs = m_music_manager->songList(areaId());
+    if (l_songs.isEmpty()) {
+        sendServerMessage("There are no songs in this area's music list.");
+        return;
+    }
+    const QString l_song = l_songs.at(QRandomGenerator::global()->bounded(l_songs.size()));
+
+    if (l_area->isjukeboxEnabled()) {
+        sendServerMessage("Shuffled " + l_song + ". " + l_area->addJukeboxSong(l_song));
+        return;
+    }
+
+    const QString l_source = characterName().isEmpty() ? character() : characterName();
+    l_area->changeMusic(l_source, l_song);
+    QString l_real_name = m_music_manager->songInformation(l_song, areaId()).first;
+    if (l_real_name.isEmpty()) {
+        l_real_name = l_song;
+    }
+    server->broadcast(PacketFactory::createPacket("MC", {l_real_name, QString::number(server->getCharID(character())), characterName(), "1", "0"}), areaId());
+    sendServerMessageArea(l_source + " shuffled the music: " + l_song);
+}
+
+void AOClient::cmdPlayAmbience(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    if (m_is_dj_blocked) {
+        sendServerMessage("You are blocked from changing the ambience.");
+        return;
+    }
+    AreaData *l_area = server->getAreaById(areaId());
+    if (!l_area->owners().contains(clientId()) && !l_area->isPlayEnabled()) { // Make sure we have permission to play music
+        sendServerMessage("Free ambience play is disabled in this area.");
+        return;
+    }
+    QString l_song = argv.join(" ");
+    if ((l_song.startsWith("http://", Qt::CaseInsensitive) || l_song.startsWith("https://", Qt::CaseInsensitive)) && !m_music_manager->validateSong(l_song, ConfigManager::cdnList())) {
+        sendServerMessage("The song you tried to play is not from an approved CDN.");
+        return;
+    }
+    l_area->changeAmbience(l_song);
+    AOPacket *music_change = PacketFactory::createPacket("MC", {l_song, "-1", characterName(), "1", "1"});
+    server->broadcast(music_change, areaId());
+}
+
+void AOClient::cmdCurrentMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    AreaData *l_area = server->getAreaById(areaId());
+    if (!l_area->currentMusic().isEmpty() && !l_area->currentMusic().contains("~stop.mp3")) // dummy track for stopping music
+        sendServerMessage("The current song is " + l_area->currentMusic() + " played by " + l_area->musicPlayerBy());
+    else
+        sendServerMessage("There is no music playing.");
+}
+
+void AOClient::cmdBlockDj(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    bool conv_ok = false;
+    int l_uid = argv[0].toInt(&conv_ok);
+    if (!conv_ok) {
+        sendServerMessage("Invalid user ID.");
+        return;
+    }
+
+    AOClient *l_target = server->getClientByID(l_uid);
+
+    if (l_target == nullptr) {
+        sendServerMessage("No client with that ID found.");
+        return;
+    }
+
+    if (l_target->m_is_dj_blocked)
+        sendServerMessage("That player is already DJ blocked!");
+    else {
+        sendServerMessage("DJ blocked player.");
+        l_target->sendServerMessage("You were blocked from changing the music by a moderator. " + getReprimand());
+    }
+    l_target->m_is_dj_blocked = true;
+}
+
+void AOClient::cmdUnBlockDj(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    bool conv_ok = false;
+    int l_uid = argv[0].toInt(&conv_ok);
+    if (!conv_ok) {
+        sendServerMessage("Invalid user ID.");
+        return;
+    }
+
+    AOClient *l_target = server->getClientByID(l_uid);
+
+    if (l_target == nullptr) {
+        sendServerMessage("No client with that ID found.");
+        return;
+    }
+
+    if (!l_target->m_is_dj_blocked)
+        sendServerMessage("That player is not DJ blocked!");
+    else {
+        sendServerMessage("DJ permissions restored to player.");
+        l_target->sendServerMessage("A moderator restored your music permissions. " + getReprimand(true));
+    }
+    l_target->m_is_dj_blocked = false;
+}
+
+void AOClient::cmdToggleMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    AreaData *l_area = server->getAreaById(areaId());
+    l_area->toggleMusic();
+    QString l_state = l_area->isMusicAllowed() ? "allowed." : "disallowed.";
+    sendServerMessage("Music in this area is now " + l_state);
+}
+
+void AOClient::cmdToggleJukebox(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    AreaData *l_area = server->getAreaById(areaId());
+    l_area->toggleJukebox();
+    QString l_state = l_area->isjukeboxEnabled() ? "enabled." : "disabled.";
+    sendServerMessageArea("The jukebox in this area has been " + l_state);
+}
+
+void AOClient::cmdAddMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    // This needs some explanation.
+    // Akashi has no concept of argument count,so any space is interpreted as a new element
+    // in the QStringList. This works fine until someone enters something with a space.
+    // Since we can't preencode those elements, we join all as a string and use a delimiter
+    // that does not exist in file and URL paths. I decided on the ol' reliable ','.
+    QString l_argv_string = argv.join(" ");
+    QStringList l_argv = l_argv_string.split(",");
+
+    bool l_success = false;
+    if (l_argv.size() == 1) {
+        QString l_song_name = l_argv.value(0);
+        l_success = m_music_manager->addCustomSong(l_song_name, l_song_name, 0, areaId());
+    }
+
+    if (l_argv.size() == 2) {
+        QString l_song_name = l_argv.value(0);
+        QString l_true_name = l_argv.value(1);
+        l_success = m_music_manager->addCustomSong(l_song_name, l_true_name, 0, areaId());
+    }
+
+    if (l_argv.size() == 3) {
+        QString l_song_name = l_argv.value(0);
+        QString l_true_name = l_argv.value(1);
+        bool ok;
+        int l_song_duration = l_argv.value(2).toInt(&ok);
+        if (!ok)
+            l_song_duration = 0;
+        l_success = m_music_manager->addCustomSong(l_song_name, l_true_name, l_song_duration, areaId());
+    }
+
+    if (l_argv.size() >= 4) {
+        sendServerMessage("Too many arguments. Addition of song has failed.");
+        return;
+    }
+
+    QString l_message = l_success ? "succeeded." : "failed.";
+    sendServerMessage("The addition of the song has " + l_message);
+}
+
+void AOClient::cmdAddMusicCategory(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    bool l_success = m_music_manager->addCustomCategory(argv.join(" "), areaId());
+    QString l_message = l_success ? "succeeded." : "failed.";
+    sendServerMessage("The addition of the category has " + l_message);
+}
+
+void AOClient::cmdRemoveCustomMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    bool l_success = m_music_manager->removeCustomMusic(argv.join(" "), areaId());
+    QString l_message = l_success ? "succeeded." : "failed.";
+    sendServerMessage("The removal of the entry has " + l_message);
+}
+
+void AOClient::cmdToggleCustomMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+    bool l_status = m_music_manager->toggleCustomMusicEnabled(areaId());
+    QString l_message = (l_status) ? "enabled." : "disabled.";
+    sendServerMessage("Global musiclist has been " + l_message);
+}
+
+void AOClient::cmdClearCustomMusic(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+    m_music_manager->clearCustomMusicList(areaId());
+    sendServerMessage("Custom songs have been cleared.");
+}
+
+void AOClient::cmdJukeboxSkip(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    QString l_name = character();
+    if (!characterName().isEmpty()) {
+        l_name = characterName();
+    }
+
+    AreaData *l_area = server->getAreaById(areaId());
+
+    if (l_area->isjukeboxEnabled()) {
+        if (l_area->getJukeboxQueueSize() >= 1) {
+            l_area->switchJukeboxSong();
+            sendServerMessageArea(l_name + " has forced a skip. Playing the next available song.");
+            return;
+        }
+        sendServerMessage("Unable to skip song. Jukebox is currently empty.");
+        return;
+    }
+    sendServerMessage("Unable to skip song. The jukebox is not running.");
+}
