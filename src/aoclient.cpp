@@ -16,6 +16,7 @@
 //    along with this program.  If not, see <https://www.gnu.org/licenses/>.        //
 //////////////////////////////////////////////////////////////////////////////////////
 #include "aoclient.h"
+#include <QDateTime>
 
 #include "area_data.h"
 #include "command_extension.h"
@@ -59,6 +60,23 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"area_spectate", {{ACLRole::CM}, 0, &AOClient::cmdSpectatable}},
     {"area_unlock", {{ACLRole::CM}, 0, &AOClient::cmdUnLock}},
     {"iclock", {{ACLRole::CM}, 0, &AOClient::cmdIClock}},
+    {"addarea", {{ACLRole::CM}, 0, &AOClient::cmdAddArea}},
+    {"addareas", {{ACLRole::CM}, 1, &AOClient::cmdAddAreas}},
+    {"removearea", {{ACLRole::CM}, 0, &AOClient::cmdRemoveArea}},
+    {"rename", {{ACLRole::CM}, 1, &AOClient::cmdRename}},
+    {"clearhub", {{ACLRole::CM}, 0, &AOClient::cmdClearHub}},
+    {"savehub", {{ACLRole::CM}, 1, &AOClient::cmdSaveHub}},
+    {"loadhub", {{ACLRole::CM}, 1, &AOClient::cmdLoadHub}},
+    {"connect", {{ACLRole::CM}, 1, &AOClient::cmdConnect}},
+    {"biconnect", {{ACLRole::CM}, 1, &AOClient::cmdBiConnect}},
+    {"disconnect", {{ACLRole::CM}, 1, &AOClient::cmdDisconnect}},
+    {"bidisconnect", {{ACLRole::CM}, 1, &AOClient::cmdBiDisconnect}},
+    {"connectlist", {{ACLRole::NONE}, 0, &AOClient::cmdConnectList}},
+    {"clearconnect", {{ACLRole::CM}, 0, &AOClient::cmdClearConnect}},
+    {"hubclearconnect", {{ACLRole::CM}, 0, &AOClient::cmdHubClearConnect}},
+    {"movetime", {{ACLRole::NONE}, 0, &AOClient::cmdMoveTime}},
+    {"whitelist", {{ACLRole::NONE}, 0, &AOClient::cmdWhitelist}},
+    {"wl", {{ACLRole::NONE}, 0, &AOClient::cmdWhitelist}},
     {"hubstatus", {{ACLRole::CM}, 1, &AOClient::cmdHubStatus}},
     {"gethubs", {{ACLRole::NONE}, 0, &AOClient::cmdGetHubs}},
     {"hubplay", {{ACLRole::CM}, 1, &AOClient::cmdHubPlay}},
@@ -231,6 +249,22 @@ void AOClient::handlePacket(AOPacket *packet)
         return;
     }
 
+    // Players who are not whitelisted yet may only ask to be whitelisted.
+    if (m_joined && !m_whitelisted) {
+        const QString l_header = packet->getPacketInfo().header;
+        if (l_header == "CT") {
+            const QString l_command = packet->getContent().value(1).trimmed().split(' ').value(0).toLower();
+            if (l_command != "/whitelist" && l_command != "/wl") {
+                sendServerMessage("You cannot send OOC messages without being whitelisted.");
+                return;
+            }
+        }
+        else if (l_header == "MS" || l_header == "MC" || l_header == "HP" || l_header == "RT" || l_header == "PE" || l_header == "DE" || l_header == "EE" || l_header == "ZZ" || l_header == "CASEA") {
+            sendServerMessage("You must be whitelisted from discord!");
+            return;
+        }
+    }
+
     if (packet->getPacketInfo().header != "CH" && m_joined) {
         if (m_is_afk) {
             sendServerMessage("You are no longer AFK.");
@@ -252,7 +286,51 @@ void AOClient::handlePacket(AOPacket *packet)
     packet->handlePacket(l_area, *this);
 }
 
-void AOClient::changeArea(int new_area)
+bool AOClient::isHubCM(const QString &f_hub) const
+{
+    if (f_hub.isEmpty()) {
+        return false;
+    }
+    const QList<int> l_hub_areas = server->getHubAreaIds(f_hub);
+    for (int l_id : l_hub_areas) {
+        if (server->getAreaById(l_id)->owners().contains(clientId())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AOClient::hubMoveAllowed(AreaData *f_destination)
+{
+    AreaData *l_current = server->getAreaById(areaId());
+    const bool l_moderator = checkPermission(ACLRole::BYPASS_LOCKS);
+
+    // An area with connections only leads to those, as long as the destination is in the same hub.
+    if (l_current->isRestricted() && !l_moderator && !l_current->owners().contains(clientId()) && !f_destination->hub().isEmpty() && f_destination->hub().compare(l_current->hub(), Qt::CaseInsensitive) == 0 && !l_current->connections().contains(f_destination)) {
+        sendServerMessage("That area is not connected to your current area!");
+        return false;
+    }
+
+    // Some areas take time to get to: the first try starts the wait, a later one after it is over succeeds.
+    if (f_destination->moveTime() > 0 && !l_moderator && !f_destination->owners().contains(clientId()) && !isHubCM(f_destination->hub())) {
+        const qint64 l_now = QDateTime::currentMSecsSinceEpoch();
+        if (m_move_target != f_destination) {
+            m_move_target = f_destination;
+            m_move_deadline = l_now + qint64(f_destination->moveTime()) * 1000;
+            sendServerMessage("Destination confirmed, wait for " + QString::number(f_destination->moveTime()) + " seconds to move to that area.");
+            return false;
+        }
+        if (l_now < m_move_deadline) {
+            sendServerMessage("You still need to wait " + QString::number((m_move_deadline - l_now + 999) / 1000) + " seconds to move there.");
+            return false;
+        }
+    }
+    m_move_target = nullptr;
+    m_move_deadline = 0;
+    return true;
+}
+
+void AOClient::changeArea(int new_area, bool f_force)
 {
     if (areaId() == new_area) {
         sendServerMessage("You are already in area " + server->getAreaName(areaId()));
@@ -262,8 +340,11 @@ void AOClient::changeArea(int new_area)
         sendServerMessage("You must join the server before changing areas.");
         return;
     }
-    if (server->getAreaById(new_area)->lockStatus() == AreaData::LockStatus::LOCKED && !server->getAreaById(new_area)->invited().contains(clientId()) && !checkPermission(ACLRole::BYPASS_LOCKS)) {
+    if (!f_force && server->getAreaById(new_area)->lockStatus() == AreaData::LockStatus::LOCKED && !server->getAreaById(new_area)->invited().contains(clientId()) && !checkPermission(ACLRole::BYPASS_LOCKS)) {
         sendServerMessage("Area " + server->getAreaName(new_area) + " is locked.");
+        return;
+    }
+    if (!f_force && !hubMoveAllowed(server->getAreaById(new_area))) {
         return;
     }
 
