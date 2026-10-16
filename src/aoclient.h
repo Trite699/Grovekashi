@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include <QHostAddress>
 #include <QRegularExpression>
+#include <QPointer>
 #include <QTimer>
 #include <QtGlobal>
 
@@ -465,7 +466,7 @@ class AOClient : public QObject
      *
      * @param new_area The ID of the new area.
      */
-    void changeArea(int new_area);
+    void changeArea(int new_area, bool f_force = false);
 
     /**
      * @brief Handles an incoming command, checking for authorisation and minimum argument count.
@@ -551,6 +552,33 @@ class AOClient : public QObject
      * @brief If true, the client is a logged-in moderator.
      */
     bool m_authenticated = false;
+
+    /**
+     * @brief If false, the client has not been whitelisted through Discord yet and cannot chat, change music or areas.
+     *
+     * @details Always true while the whitelist is switched off. See the [Whitelist] section in config.ini.
+     */
+    bool m_whitelisted = true;
+
+    /**
+     * @brief The Discord username the client asked to be whitelisted as, or that it was whitelisted as. Lowercase.
+     */
+    QString m_discord_name;
+
+    /**
+     * @brief True once the client has asked to be whitelisted with /whitelist.
+     */
+    bool m_whitelist_requested = false;
+
+    /**
+     * @brief The area the client is waiting to enter because of its move time, see AreaData::moveTime().
+     */
+    QPointer<AreaData> m_move_target;
+
+    /**
+     * @brief Time (milliseconds since epoch) after which the client may enter m_move_target.
+     */
+    qint64 m_move_deadline = 0;
 
     /**
      * @brief The ACL role identifier, used to determine what ACL role the client is linked to.
@@ -887,6 +915,166 @@ class AOClient : public QObject
      * @see AreaData::SPECTATABLE
      */
     void cmdSpectatable(int argc, QStringList argv);
+
+    /**
+     * @brief Returns true if the client is a CM of at least one area of the given hub.
+     */
+    bool isHubCM(const QString &f_hub) const;
+
+    /**
+     * @brief Checks the hub rules (connections and move time) for a move to another area.
+     *
+     * @details Tells the client why if the move is not allowed. Moderators and CMs are exempt.
+     *
+     * @return True if the client may enter the area now.
+     */
+    bool hubMoveAllowed(AreaData *f_destination);
+
+    /**
+     * @brief Creates a new area in the hub of the current area.
+     *
+     * @details Usage: /addarea [name]. Without a name the area is called "Area N". A hub can have 100 created areas.
+     *
+     * @iscommand
+     */
+    void cmdAddArea(int argc, QStringList argv);
+
+    /**
+     * @brief Creates several new areas in the hub of the current area.
+     *
+     * @details Usage: /addareas <amount>. The areas are called "Area N".
+     *
+     * @iscommand
+     */
+    void cmdAddAreas(int argc, QStringList argv);
+
+    /**
+     * @brief Removes the current area if it was created with /addarea or /loadhub.
+     *
+     * @details No arguments. Everybody in the area is moved to the first area of the hub.
+     *
+     * @iscommand
+     */
+    void cmdRemoveArea(int argc, QStringList argv);
+
+    /**
+     * @brief Renames the current area, which has to be part of a hub.
+     *
+     * @details Usage: /rename <name>.
+     *
+     * @iscommand
+     */
+    void cmdRename(int argc, QStringList argv);
+
+    /**
+     * @brief Removes all areas that were created in the hub and all its connections.
+     *
+     * @details No arguments.
+     *
+     * @iscommand
+     */
+    void cmdClearHub(int argc, QStringList argv);
+
+    /**
+     * @brief Saves the areas created in the hub, with their connections, to storage/hubs.
+     *
+     * @details Usage: /savehub <name>.
+     *
+     * @iscommand
+     */
+    void cmdSaveHub(int argc, QStringList argv);
+
+    /**
+     * @brief Replaces the areas created in the hub with a saved hub.
+     *
+     * @details Usage: /loadhub <name>.
+     *
+     * @iscommand
+     */
+    void cmdLoadHub(int argc, QStringList argv);
+
+    /**
+     * @brief Lets players walk from the current area to other areas of the hub.
+     *
+     * @details Usage: /connect <area id or name>... Once an area has a connection, players can only leave it
+     * towards its connections (CMs and moderators excepted).
+     *
+     * @iscommand
+     */
+    void cmdConnect(int argc, QStringList argv);
+
+    /**
+     * @brief Like /connect, but the other areas are connected back to the current area as well.
+     *
+     * @details Usage: /biconnect <area id or name>...
+     *
+     * @iscommand
+     */
+    void cmdBiConnect(int argc, QStringList argv);
+
+    /**
+     * @brief Removes connections from the current area.
+     *
+     * @details Usage: /disconnect <area id or name>...
+     *
+     * @iscommand
+     */
+    void cmdDisconnect(int argc, QStringList argv);
+
+    /**
+     * @brief Like /disconnect, but removes the connections back to the current area as well.
+     *
+     * @details Usage: /bidisconnect <area id or name>...
+     *
+     * @iscommand
+     */
+    void cmdBiDisconnect(int argc, QStringList argv);
+
+    /**
+     * @brief Shows the connections of the current area.
+     *
+     * @details No arguments.
+     *
+     * @iscommand
+     */
+    void cmdConnectList(int argc, QStringList argv);
+
+    /**
+     * @brief Removes all connections of the current area.
+     *
+     * @details No arguments.
+     *
+     * @iscommand
+     */
+    void cmdClearConnect(int argc, QStringList argv);
+
+    /**
+     * @brief Removes all connections of all areas of the hub.
+     *
+     * @details No arguments.
+     *
+     * @iscommand
+     */
+    void cmdHubClearConnect(int argc, QStringList argv);
+
+    /**
+     * @brief Shows or sets how many seconds players have to wait before entering the current area.
+     *
+     * @details Usage: /movetime [seconds]. Setting it needs a CM, 0 turns it off.
+     *
+     * @iscommand
+     */
+    void cmdMoveTime(int argc, QStringList argv);
+
+    /**
+     * @brief Asks to be whitelisted through Discord. Also available as /wl.
+     *
+     * @details Usage: /whitelist <discord username>. A "Whitelist Self" button is posted for that Discord user in
+     * the whitelist channel. Pressing it whitelists the player. Needs the [Whitelist] section in config.ini.
+     *
+     * @iscommand
+     */
+    void cmdWhitelist(int argc, QStringList argv);
 
     /**
      * @brief Sets the status of every area in the current area's hub.
