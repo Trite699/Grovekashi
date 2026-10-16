@@ -661,6 +661,73 @@ class AreaData : public QObject
     QString hub() const;
 
     /**
+     * @brief Changes the hub this area belongs to.
+     */
+    void setHub(const QString &f_hub);
+
+    /**
+     * @brief Returns true if this area was created while the server runs (/addarea, /loadhub) and not in areas.ini.
+     */
+    bool isDynamic() const;
+
+    /**
+     * @brief Marks the area as created while the server runs.
+     */
+    void setDynamic(bool f_dynamic);
+
+    /**
+     * @brief Changes the index of the area, which happens when an area in front of it is removed.
+     */
+    void setIndex(int f_index);
+
+    /**
+     * @brief Changes the name of the area.
+     */
+    void setName(const QString &f_name);
+
+    /**
+     * @brief Returns the areas this area is connected to. Only used inside hubs, see AOClient::cmdConnect.
+     */
+    QList<AreaData *> connections() const;
+
+    /**
+     * @brief Connects this area to another one, so players can walk from here to there.
+     */
+    void addConnection(AreaData *f_area);
+
+    /**
+     * @brief Removes the connection to another area, if there is one.
+     */
+    void removeConnection(AreaData *f_area);
+
+    /**
+     * @brief Removes all connections of this area.
+     */
+    void clearConnections();
+
+    /**
+     * @brief Returns true if players can only leave this area towards the areas it is connected to.
+     *
+     * @details That is the case as soon as the area has at least one connection.
+     */
+    bool isRestricted() const;
+
+    /**
+     * @brief Returns the seconds a player has to wait before entering this area, 0 if there is no wait.
+     */
+    int moveTime() const;
+
+    /**
+     * @brief Sets the seconds a player has to wait before entering this area.
+     */
+    void setMoveTime(int f_seconds);
+
+    /**
+     * @brief Stops all timers of the area. Called before an area is deleted.
+     */
+    void shutdown();
+
+    /**
      * @brief Returns if the area's message should be sent when a user joins the area.
      *
      * @return See short description.
@@ -1200,6 +1267,21 @@ class AreaData : public QObject
      * @brief The hub this area belongs to. Areas that share the same name form one hub.
      */
     QString m_hub;
+
+    /**
+     * @brief True if the area was created while the server runs.
+     */
+    bool m_dynamic = false;
+
+    /**
+     * @brief The areas players can walk to from this area. Empty means there is no restriction.
+     */
+    QList<AreaData *> m_connections;
+
+    /**
+     * @brief The seconds a player has to wait before entering this area.
+     */
+    int m_move_time = 0;
 
     /**
      * @brief The Confidence Gauge's value for the Defence side.
