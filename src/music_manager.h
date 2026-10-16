@@ -1,4 +1,4 @@
-//////////////////////////////////////////////////////////////////////////////////////
+ //////////////////////////////////////////////////////////////////////////////////////
 //    akashi - a server for Attorney Online 2                                       //
 //    Copyright (C) 2020  scatterflower                                             //
 //                                                                                  //
@@ -75,6 +75,13 @@ class MusicManager : public QObject
      * @return Returns false if registering the area fails.
      */
     bool registerArea(int f_area_id);
+
+    /**
+     * @brief Forgets an area that was removed and moves the data of all later areas one index down.
+     *
+     * @param f_area_id The index of the removed area.
+     */
+    void unregisterArea(int f_area_id);
 
     /**
      * @brief Validates the song candidate to be played. If validation fails, false is returned.
