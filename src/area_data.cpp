@@ -354,6 +354,79 @@ bool AreaData::changeStatus(const QString &f_newStatus_r)
     return false;
 }
 
+void AreaData::setHub(const QString &f_hub)
+{
+    m_hub = f_hub.trimmed();
+}
+
+bool AreaData::isDynamic() const
+{
+    return m_dynamic;
+}
+
+void AreaData::setDynamic(bool f_dynamic)
+{
+    m_dynamic = f_dynamic;
+}
+
+void AreaData::setIndex(int f_index)
+{
+    m_index = f_index;
+    m_display_name = "[" + QString::number(m_index) + "] " + m_name;
+}
+
+void AreaData::setName(const QString &f_name)
+{
+    m_name = f_name;
+    m_display_name = "[" + QString::number(m_index) + "] " + m_name;
+}
+
+QList<AreaData *> AreaData::connections() const
+{
+    return m_connections;
+}
+
+void AreaData::addConnection(AreaData *f_area)
+{
+    if (f_area && f_area != this && !m_connections.contains(f_area)) {
+        m_connections.append(f_area);
+    }
+}
+
+void AreaData::removeConnection(AreaData *f_area)
+{
+    m_connections.removeAll(f_area);
+}
+
+void AreaData::clearConnections()
+{
+    m_connections.clear();
+}
+
+bool AreaData::isRestricted() const
+{
+    return !m_connections.isEmpty();
+}
+
+int AreaData::moveTime() const
+{
+    return m_move_time;
+}
+
+void AreaData::setMoveTime(int f_seconds)
+{
+    m_move_time = qMax(0, f_seconds);
+}
+
+void AreaData::shutdown()
+{
+    for (QTimer *l_timer : qAsConst(m_timers)) {
+        l_timer->stop();
+    }
+    m_jukebox_timer->stop();
+    m_message_floodguard_timer->stop();
+}
+
 QString AreaData::hub() const
 {
     return m_hub;
