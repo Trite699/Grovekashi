@@ -41,12 +41,11 @@ class AOPacket;
 /**
  * @brief Represents a client connected to the server running Attorney Online 2 or one of its derivatives.
  */
-
 class AOClient : public QObject
 {
     Q_OBJECT
 
-public:
+  public:
     /**
      * @brief Describes a command's details.
      */
@@ -640,10 +639,9 @@ public:
      * to determine if a client has entered spectator or user mode. I am making this a const mostly
      * for the case this could change at some point in the future, but don't count on it.
      */
-
     const int SPECTATOR_ID = -1;
 
-public slots:
+  public slots:
     /**
      * @brief Handles an incoming packet, checking for authorisation and minimum argument count.
      *
@@ -676,10 +674,9 @@ public slots:
     /**
      * @brief A slot for when the client's AFK timer runs out.
      */
-
     void onAfkTimeout();
 
-signals:
+  signals:
     /**
      * @brief This signal is emitted when the client has completed the participation handshake.
      */
@@ -688,10 +685,9 @@ signals:
     void nameChanged(const QString &);
     void characterChanged(const QString &);
     void characterNameChanged(const QString &);
-
     void areaIdChanged(int);
 
-private:
+  private:
     /**
      * @brief The user ID of the client.
      */
@@ -2405,10 +2401,9 @@ private:
     /**
      * @brief Number of packets received for the current tick.
      */
-
     int packet_count;
 
-signals:
+  signals:
     /**
      * @brief Signal connected to universal logger. Sends IC chat usage to the logger.
      */
