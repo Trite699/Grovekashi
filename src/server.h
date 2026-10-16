@@ -42,6 +42,7 @@ class CommandExtensionCollection;
 class ConfigManager;
 class DBManager;
 class Discord;
+class DiscordWhitelist;
 class MusicManager;
 class CdnMusicFetcher;
 class ULogger;
@@ -279,6 +280,65 @@ class Server : public QObject
     QList<int> getHubAreaIds(const QString &f_hub) const;
 
     /**
+     * @brief Returns the index of the first area in areas.ini that belongs to a hub, or -1 if there is none.
+     */
+    int hubMainAreaId(const QString &f_hub) const;
+
+    /**
+     * @brief Creates a new area in a hub while the server runs.
+     *
+     * @param f_name The name of the new area. It has to be valid and unused, see AOClient::cmdAddArea.
+     * @param f_template The area whose hub and background the new area takes over.
+     *
+     * @return The index of the new area.
+     */
+    int addDynamicArea(const QString &f_name, AreaData *f_template);
+
+    /**
+     * @brief Removes an area that was created while the server runs.
+     *
+     * @details Everybody inside is moved to the first area of the hub, the connections to the area are dropped,
+     * the areas behind it move up by one index and every client gets the new area list.
+     *
+     * @return False if the index does not belong to a removable area.
+     */
+    bool removeDynamicArea(int f_index);
+
+    /**
+     * @brief Renames an area and sends the new area list to everybody.
+     */
+    void renameArea(int f_index, const QString &f_name);
+
+    /**
+     * @brief Sends the current area list and the area information (players, status, CMs, locks) to every client.
+     */
+    void syncAreaList();
+
+    /**
+     * @brief Returns true if the Discord whitelist is switched on and its bot is configured.
+     */
+    bool whitelistActive() const;
+
+    /**
+     * @brief Returns the whitelist bot, or a nullptr if the whitelist is not active.
+     */
+    DiscordWhitelist *whitelistBot() const;
+
+    /**
+     * @brief Sets the whitelist state of a client that has just connected.
+     *
+     * @details With the whitelist off, everybody is whitelisted. On trust level "medium" and "high", a client is
+     * whitelisted when another client with the same IPID already is. On "high", clients whose IPID is in
+     * config/trusted_users.json are whitelisted as well.
+     */
+    void initClientWhitelist(AOClient *f_client);
+
+    /**
+     * @brief Remembers that an IPID was whitelisted as a Discord name. Only does something on trust level "high".
+     */
+    void addTrustedUser(const QString &f_discord_name, const QString &f_ipid);
+
+    /**
      * @brief Getter for an area specific buffer from the logger.
      */
     QQueue<QString> getAreaBuffer(const QString &f_areaName);
@@ -489,6 +549,11 @@ class Server : public QObject
      * @brief Collection of all clients with their userID as key.
      */
     QHash<int, AOClient *> m_clients_ids;
+
+    /**
+     * @brief The Discord bot that handles whitelist requests. A nullptr if the whitelist is not active.
+     */
+    DiscordWhitelist *m_whitelist_bot = nullptr;
     QHash<QString, qint64> m_join_times;
     bool m_join_cooldown_enabled = true;
     int m_join_cooldown_seconds = 120;
