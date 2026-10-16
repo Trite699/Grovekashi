@@ -1,4 +1,4 @@
- //////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////
 //    akashi - a server for Attorney Online 2                                       //
 //    Copyright (C) 2020  scatterflower                                             //
 //                                                                                  //
@@ -32,7 +32,7 @@ class MusicManager : public QObject
 {
     Q_OBJECT
 
-  public:
+public:
     /**
      * @brief Constructor for the server-wide musiclist manager.
      *
@@ -170,8 +170,7 @@ class MusicManager : public QObject
      */
     void broadcastMusicList();
 
-  public slots:
-
+public slots:
     /**
      * @brief Updates the root musiclist and CDN list.
      */
@@ -182,8 +181,7 @@ class MusicManager : public QObject
      */
     void userJoinedArea(int f_area_index, int f_user_id);
 
-  signals:
-
+signals:
     /**
      * @brief Sends the FM packet with the musiclist of the area when a client enters.
      *
@@ -202,7 +200,7 @@ class MusicManager : public QObject
      */
     void sendAreaFMPacket(AOPacket *f_packet, int f_area_index);
 
-  private:
+private:
     /**
      * @brief Contains all custom lists of all areas in the server.
      */
