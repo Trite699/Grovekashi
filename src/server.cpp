@@ -25,6 +25,7 @@
 #include "config_manager.h"
 #include "db_manager.h"
 #include "discord.h"
+#include "discord_whitelist.h"
 #include "logger/u_logger.h"
 #include "music_manager.h"
 #include "network/network_socket.h"
@@ -292,6 +293,16 @@ void Server::start()
 
     m_join_cooldown_seconds = ConfigManager::joinCooldownSeconds();
 
+    if (ConfigManager::whitelistEnabled()) {
+        if (ConfigManager::whitelistToken().isEmpty() || ConfigManager::whitelistChannel().isEmpty()) {
+            qWarning() << "The whitelist is enabled, but token or channel are missing in the [Whitelist] section of config.ini. The whitelist stays off.";
+        }
+        else {
+            m_whitelist_bot = new DiscordWhitelist(this, this);
+            m_whitelist_bot->start();
+        }
+    }
+
     // Rate-Limiter for IC-Chat
     m_message_floodguard_timer = new QTimer(this);
     m_message_floodguard_timer->setSingleShot(true);
@@ -312,6 +323,7 @@ QVector<AOClient *> Server::getClients()
 void Server::clientConnected()
 {
     QWebSocket *socket = server->nextPendingConnection();
+
     NetworkSocket *l_socket = new NetworkSocket(socket, socket);
 
     // Too many players. Reject connection!
@@ -330,7 +342,9 @@ void Server::clientConnected()
 
     bool is_at_multiclient_limit = false;
     client->calculateIpid();
+
     recordJoin(client->getIpid());
+    initClientWhitelist(client);
     auto ban = db_manager->isIPBanned(client->getIpid());
     bool is_banned = ban.first;
 
@@ -652,6 +666,195 @@ AreaData *Server::getAreaById(int f_area_id)
     }
 
     return l_area;
+}
+
+bool Server::whitelistActive() const
+{
+    return m_whitelist_bot != nullptr;
+}
+
+DiscordWhitelist *Server::whitelistBot() const
+{
+    return m_whitelist_bot;
+}
+
+void Server::initClientWhitelist(AOClient *f_client)
+{
+    if (!whitelistActive()) {
+        f_client->m_whitelisted = true;
+        return;
+    }
+    f_client->m_whitelisted = false;
+
+    const QString l_level = ConfigManager::whitelistTrustLevel();
+    if (l_level == "low") {
+        return;
+    }
+
+    // Medium and high: somebody with the same IPID is already whitelisted.
+    for (AOClient *l_client : qAsConst(m_clients)) {
+        if (l_client != f_client && l_client->m_whitelisted && l_client->getIpid() == f_client->getIpid() && !l_client->m_discord_name.isEmpty()) {
+            f_client->m_whitelisted = true;
+            f_client->m_discord_name = l_client->m_discord_name;
+            return;
+        }
+    }
+
+    if (l_level != "high") {
+        return;
+    }
+
+    // High: the IPID is in the list of trusted users.
+    QFile l_file("config/trusted_users.json");
+    if (!l_file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    const QJsonArray l_users = QJsonDocument::fromJson(l_file.readAll()).array();
+    for (const QJsonValue &l_user_value : l_users) {
+        const QJsonObject l_user = l_user_value.toObject();
+        const QJsonArray l_ipids = l_user.value("ipids").toArray();
+        for (const QJsonValue &l_ipid : l_ipids) {
+            if (l_ipid.toString() == f_client->getIpid()) {
+                f_client->m_whitelisted = true;
+                f_client->m_discord_name = l_user.value("discord_name").toString();
+                m_whitelist_bot->announceReturningUser(f_client->m_discord_name);
+                return;
+            }
+        }
+    }
+}
+
+void Server::addTrustedUser(const QString &f_discord_name, const QString &f_ipid)
+{
+    if (!whitelistActive() || ConfigManager::whitelistTrustLevel() != "high") {
+        return;
+    }
+
+    QJsonArray l_users;
+    QFile l_read("config/trusted_users.json");
+    if (l_read.open(QIODevice::ReadOnly)) {
+        l_users = QJsonDocument::fromJson(l_read.readAll()).array();
+        l_read.close();
+    }
+
+    bool l_found = false;
+    for (int i = 0; i < l_users.size(); i++) {
+        QJsonObject l_user = l_users.at(i).toObject();
+        if (l_user.value("discord_name").toString() != f_discord_name) {
+            continue;
+        }
+        QJsonArray l_ipids = l_user.value("ipids").toArray();
+        if (!l_ipids.contains(f_ipid)) {
+            l_ipids.append(f_ipid);
+        }
+        l_user["ipids"] = l_ipids;
+        l_users[i] = l_user;
+        l_found = true;
+        break;
+    }
+    if (!l_found) {
+        l_users.append(QJsonObject{{"discord_name", f_discord_name}, {"ipids", QJsonArray{f_ipid}}});
+    }
+
+    QFile l_write("config/trusted_users.json");
+    if (!l_write.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "Whitelist: could not save config/trusted_users.json";
+        return;
+    }
+    l_write.write(QJsonDocument(l_users).toJson());
+}
+
+int Server::hubMainAreaId(const QString &f_hub) const
+{
+    for (int i = 0; i < m_areas.length(); i++) {
+        if (!m_areas.at(i)->isDynamic() && m_areas.at(i)->hub().compare(f_hub, Qt::CaseInsensitive) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int Server::addDynamicArea(const QString &f_name, AreaData *f_template)
+{
+    const int l_index = m_areas.length();
+    AreaData *l_area = new AreaData(QString::number(l_index) + ":" + f_name, l_index, music_manager);
+    l_area->setHub(f_template->hub());
+    l_area->setDynamic(true);
+    l_area->setBackground(f_template->background());
+    connect(l_area, &AreaData::sendAreaPacket, this, QOverload<AOPacket *, int>::of(&Server::broadcast));
+    connect(l_area, &AreaData::sendAreaPacketClient, this, &Server::unicast);
+    connect(l_area, &AreaData::userJoinedArea, music_manager, &MusicManager::userJoinedArea);
+
+    m_areas.append(l_area);
+    m_area_names.append(f_name);
+    music_manager->registerArea(l_index);
+    syncAreaList();
+    return l_index;
+}
+
+bool Server::removeDynamicArea(int f_index)
+{
+    if (f_index < 0 || f_index >= m_areas.length() || !m_areas.at(f_index)->isDynamic()) {
+        return false;
+    }
+    AreaData *l_area = m_areas.at(f_index);
+    const QString l_old_name = l_area->name();
+
+    int l_target = hubMainAreaId(l_area->hub());
+    if (l_target < 0 || l_target == f_index) {
+        l_target = 0;
+    }
+
+    // Everybody inside has to leave first.
+    const QList<AOClient *> l_all_clients = m_clients_ids.values();
+    for (AOClient *l_client : l_all_clients) {
+        if (l_client && l_client->hasJoined() && l_client->areaId() == f_index) {
+            l_client->changeArea(l_target, true);
+            l_client->sendServerMessage("You were moved to " + getAreaName(l_target) + " from " + l_old_name + " because it was removed.");
+        }
+    }
+
+    for (AreaData *l_other : qAsConst(m_areas)) {
+        l_other->removeConnection(l_area);
+    }
+    l_area->shutdown();
+    m_areas.remove(f_index);
+    m_area_names.removeAt(f_index);
+    music_manager->unregisterArea(f_index);
+
+    // Everything behind the removed area moves up by one.
+    for (int i = f_index; i < m_areas.length(); i++) {
+        m_areas.at(i)->setIndex(i);
+    }
+    for (AOClient *l_client : l_all_clients) {
+        if (l_client && l_client->areaId() > f_index) {
+            l_client->setAreaId(l_client->areaId() - 1);
+        }
+    }
+    l_area->deleteLater();
+
+    syncAreaList();
+    return true;
+}
+
+void Server::renameArea(int f_index, const QString &f_name)
+{
+    if (f_index < 0 || f_index >= m_areas.length()) {
+        return;
+    }
+    m_areas.at(f_index)->setName(f_name);
+    m_area_names[f_index] = f_name;
+    syncAreaList();
+}
+
+void Server::syncAreaList()
+{
+    for (AOClient *l_client : qAsConst(m_clients)) {
+        if (l_client && l_client->hasJoined()) {
+            l_client->sendPacket("FA", m_area_names);
+            l_client->fullArup();
+        }
+    }
 }
 
 QList<int> Server::getHubAreaIds(const QString &f_hub) const
