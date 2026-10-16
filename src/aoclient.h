@@ -22,8 +22,8 @@
 
 #include <QDateTime>
 #include <QHostAddress>
-#include <QRegularExpression>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QtGlobal>
 
@@ -45,7 +45,7 @@ class AOClient : public QObject
 {
     Q_OBJECT
 
-  public:
+public:
     /**
      * @brief Describes a command's details.
      */
@@ -641,7 +641,7 @@ class AOClient : public QObject
      */
     const int SPECTATOR_ID = -1;
 
-  public slots:
+public slots:
     /**
      * @brief Handles an incoming packet, checking for authorisation and minimum argument count.
      *
@@ -676,7 +676,7 @@ class AOClient : public QObject
      */
     void onAfkTimeout();
 
-  signals:
+signals:
     /**
      * @brief This signal is emitted when the client has completed the participation handshake.
      */
@@ -687,7 +687,7 @@ class AOClient : public QObject
     void characterNameChanged(const QString &);
     void areaIdChanged(int);
 
-  private:
+private:
     /**
      * @brief The user ID of the client.
      */
@@ -2403,8 +2403,7 @@ class AOClient : public QObject
      */
     int packet_count;
 
-  signals:
-
+signals:
     /**
      * @brief Signal connected to universal logger. Sends IC chat usage to the logger.
      */
@@ -2413,8 +2412,7 @@ class AOClient : public QObject
     /**
      * @brief Signal connected to universal logger. Sends music usage to the logger.
      */
-    void logMusic(const QString &f_charName, const QString &f_oocName, const QString &f_ipid,
-                  const QString &f_areaName, const QString &f_track);
+    void logMusic(const QString &f_charName, const QString &f_oocName, const QString &f_ipid, const QString &f_areaName, const QString &f_track);
 
     /**
      * @brief Signal connected to universal logger. Sends OOC chat usage to the logger.
@@ -2424,14 +2422,12 @@ class AOClient : public QObject
     /**
      * @brief Signal connected to universal logger. Sends login attempt to the logger.
      */
-    void logLogin(const QString &f_charName, const QString &f_oocName, const QString &f_moderatorName,
-                  const QString &f_ipid, const QString &f_areaName, const bool &f_success);
+    void logLogin(const QString &f_charName, const QString &f_oocName, const QString &f_moderatorName, const QString &f_ipid, const QString &f_areaName, const bool &f_success);
 
     /**
      * @brief Signal connected to universal logger. Sends command usage to the logger.
      */
-    void logCMD(const QString &f_charName, const QString &f_ipid, const QString &f_oocName, const QString f_command,
-                const QStringList f_args, const QString f_areaName);
+    void logCMD(const QString &f_charName, const QString &f_ipid, const QString &f_oocName, const QString f_command, const QStringList f_args, const QString f_areaName);
 
     /**
      * @brief Signal connected to universal logger. Sends player kick information to the logger.
