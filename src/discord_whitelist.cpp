@@ -198,14 +198,14 @@ void DiscordWhitelist::requestWhitelist(AOClient *f_client, const QString &f_dis
             const QJsonObject l_message{
                 {"embeds", QJsonArray{l_embed}},
                 {"components", QJsonArray{QJsonObject{
-                                  {"type", 1},
-                                  {"components", QJsonArray{QJsonObject{
-                                                     {"type", 2},
-                                                     {"style", 1},
-                                                     {"label", "Whitelist Self"},
-                                                     {"custom_id", l_custom_id},
-                                                 }}},
-                              }}},
+                                   {"type", 1},
+                                   {"components", QJsonArray{QJsonObject{
+                                                      {"type", 2},
+                                                      {"style", 1},
+                                                      {"label", "Whitelist Self"},
+                                                      {"custom_id", l_custom_id},
+                                                  }}},
+                               }}},
             };
 
             Prompt *l_prompt = new Prompt;
@@ -428,7 +428,8 @@ void DiscordWhitelist::onGatewayMessage(const QString &f_message)
     case 9: // Invalid session
         m_socket.close(QWebSocketProtocol::CloseCodeGoingAway);
         break;
-    case 10: { // Hello
+    case 10:
+    { // Hello
         const int l_interval = l_payload.value("d").toObject().value("heartbeat_interval").toInt(41250);
         m_heartbeat_acked = true;
         m_heartbeat_timer.start(l_interval);
