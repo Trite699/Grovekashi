@@ -1129,7 +1129,7 @@ class AOClient : public QObject
      * @details No arguments. When it is off, it turns on: a free area becomes spectatable, a locked area stays
      * locked, and everyone except the CMs is removed from the invite list, so only CMs may speak in character.
      * When it is on, it turns off and the area gets the lock status it had before, with everyone present
-     * able to speak again. Use /invite to let single people speak while it is on.
+     * able to speak again. While it is on, only CMs can speak IC; invites do not grant speech.
      *
      * @iscommand
      *
@@ -1489,6 +1489,17 @@ class AOClient : public QObject
     void cmdJoinCooldownTime(int arc, QStringList argv);
 
     void cmdToggleJoinLockdown(int argc, QStringList argv);
+
+    /**
+     * @brief Toggles the Discord whitelist on or off at runtime.
+     *
+     * @details No arguments. Usable by anyone who is logged in (/login). When switched off, everybody connected is
+     * whitelisted and new clients join without being asked. When switched on again, new clients have to whitelist
+     * as configured. Needs the [Whitelist] section in config.ini. Resets to on when the server restarts.
+     *
+     * @iscommand
+     */
+    void cmdToggleWhitelist(int argc, QStringList argv);
 
     /**
      * @brief Lists the last five bans made on the server.
