@@ -642,6 +642,25 @@ void AOClient::cmdToggleJoinLockdown(int argc, QStringList argv)
     sendServerMessage(QString("Join lockdown is now %1.").arg(server->joinLockdownEnabled() ? "enabled" : "disabled"));
 }
 
+void AOClient::cmdToggleWhitelist(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    // Mods are anybody with a login.
+    if (!m_authenticated) {
+        sendServerMessage("You must be logged in to use this command.");
+        return;
+    }
+    if (!ConfigManager::whitelistEnabled() || server->whitelistBot() == nullptr) {
+        sendServerMessage("Whitelist is not enabled on this server!");
+        return;
+    }
+
+    server->setWhitelistEnforced(!server->whitelistEnforced());
+    sendServerMessage(QString("Whitelist is now %1.").arg(server->whitelistEnforced() ? "enabled" : "disabled"));
+}
+
 void AOClient::cmdForceImmediate(int argc, QStringList argv)
 {
     Q_UNUSED(argc);
