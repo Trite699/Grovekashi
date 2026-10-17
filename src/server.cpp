@@ -670,7 +670,24 @@ AreaData *Server::getAreaById(int f_area_id)
 
 bool Server::whitelistActive() const
 {
-    return m_whitelist_bot != nullptr;
+    return m_whitelist_bot != nullptr && m_whitelist_enforced;
+}
+
+bool Server::whitelistEnforced() const
+{
+    return m_whitelist_enforced;
+}
+
+void Server::setWhitelistEnforced(bool f_enforced)
+{
+    m_whitelist_enforced = f_enforced;
+    if (!f_enforced) {
+        // Everybody who is connected right now gets in.
+        const QVector<AOClient *> l_clients = getClients();
+        for (AOClient *l_client : l_clients) {
+            l_client->m_whitelisted = true;
+        }
+    }
 }
 
 DiscordWhitelist *Server::whitelistBot() const
