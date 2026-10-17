@@ -320,6 +320,16 @@ class Server : public QObject
     bool whitelistActive() const;
 
     /**
+     * @brief Returns true if the whitelist bot exists and enforcement has not been toggled off at runtime.
+     */
+    bool whitelistEnforced() const;
+
+    /**
+     * @brief Switches whitelist enforcement on or off at runtime. Has no effect without a configured whitelist bot.
+     */
+    void setWhitelistEnforced(bool f_enforced);
+
+    /**
      * @brief Returns the whitelist bot, or a nullptr if the whitelist is not active.
      */
     DiscordWhitelist *whitelistBot() const;
@@ -554,6 +564,11 @@ class Server : public QObject
      * @brief The Discord bot that handles whitelist requests. A nullptr if the whitelist is not active.
      */
     DiscordWhitelist *m_whitelist_bot = nullptr;
+
+    /**
+     * @brief Runtime switch for whitelist enforcement, toggled with /toggle_whitelist. Resets to true on restart.
+     */
+    bool m_whitelist_enforced = true;
     QHash<QString, qint64> m_join_times;
     bool m_join_cooldown_enabled = true;
     int m_join_cooldown_seconds = 120;
