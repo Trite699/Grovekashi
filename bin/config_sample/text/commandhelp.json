@@ -345,7 +345,15 @@
          "iclock"
       ],
       "usage":"/iclock",
-      "text":"Toggles IClock. When enabled, only CMs may speak in character in the area. Running it again disables it and restores the area to how it was before. Use /invite to let single people speak while it is on. This command takes no arguments."
+      "text":"Toggles IClock. When enabled, only CMs may speak in character in the area. Running it again disables it and restores the area to how it was before. Nobody else can speak in character, not even people who were already in the area or who were invited, until it is turned off. This command takes no arguments."
+   },
+   {
+      "names": [
+         "toggle_whitelist",
+         "twl"
+      ],
+      "usage":"/toggle_whitelist",
+      "text":"Toggles the Discord whitelist on or off. Anyone who is logged in can use it. Turning it off whitelists everyone currently connected and lets new players join freely. Resets to on when the server restarts. This command takes no arguments."
    },
    {
       "names": [
