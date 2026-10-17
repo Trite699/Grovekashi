@@ -117,6 +117,9 @@ AOPacket *PacketMS::validateIcPacket(AOClient &client) const
         // Spectators cannot use IC
         return l_invalid;
     AreaData *area = client.getServer()->getAreaById(client.areaId());
+    if (area->iclockEnabled() && !area->owners().contains(client.clientId()))
+        // With /iclock on, only CMs of the area may speak IC. Invites and mod bypasses do not count.
+        return l_invalid;
     if (area->lockStatus() == AreaData::LockStatus::SPECTATABLE && !area->invited().contains(client.clientId()) && !client.checkPermission(ACLRole::BYPASS_LOCKS))
         // Non-invited players cannot speak in spectatable areas
         return l_invalid;
