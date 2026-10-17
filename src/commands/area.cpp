@@ -151,6 +151,10 @@ void AOClient::cmdInvite(int argc, QStringList argv)
     }
     sendServerMessage("You invited ID " + argv[0]);
     target_client->sendServerMessage("You were invited and given access to " + l_area->name());
+    if (l_area->iclockEnabled()) {
+        sendServerMessage("ICLock is enabled in this area");
+        target_client->sendServerMessage("ICLock is enabled in this area");
+    }
 }
 
 void AOClient::cmdUnInvite(int argc, QStringList argv)
@@ -269,7 +273,7 @@ void AOClient::cmdIClock(int argc, QStringList argv)
         l_area->spectatable();
     }
 
-    // Only the CMs keep the right to speak in character.
+    // Only the CMs keep the right to speak in character (also enforced in packet_ms.cpp).
     const QList<int> l_owners = l_area->owners();
     const QList<int> l_invited = l_area->invited();
     for (int l_client_id : l_invited) {
