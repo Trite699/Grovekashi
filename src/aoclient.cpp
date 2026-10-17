@@ -129,6 +129,8 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"toggle_join_cooldown", {{ACLRole::SUPER}, 0, &AOClient::cmdToggleJoinCooldown}},
     {"join_cooldown_time", {{ACLRole::SUPER}, 0, &AOClient::cmdJoinCooldownTime}},
     {"toggle_join_lockdown", {{ACLRole::SUPER}, 0, &AOClient::cmdToggleJoinLockdown}},
+    {"toggle_whitelist", {{ACLRole::NONE}, 0, &AOClient::cmdToggleWhitelist}},
+    {"twl", {{ACLRole::NONE}, 0, &AOClient::cmdToggleWhitelist}},
     {"disemvowel", {{ACLRole::MUTE}, 1, &AOClient::cmdDisemvowel}},
     {"undisemvowel", {{ACLRole::MUTE}, 1, &AOClient::cmdUnDisemvowel}},
     {"shake", {{ACLRole::MUTE}, 1, &AOClient::cmdShake}},
@@ -385,7 +387,10 @@ void AOClient::changeArea(int new_area, bool f_force)
         sendServerMessage(server->getAreaById(areaId())->areaMessage());
     }
 
-    if (server->getAreaById(areaId())->lockStatus() == AreaData::LockStatus::SPECTATABLE) {
+    if (server->getAreaById(areaId())->iclockEnabled()) {
+        sendServerMessage("Area " + server->getAreaName(areaId()) + " has IClock enabled; only CMs can chat IC.");
+    }
+    else if (server->getAreaById(areaId())->lockStatus() == AreaData::LockStatus::SPECTATABLE) {
         sendServerMessage("Area " + server->getAreaName(areaId()) + " is spectate-only; to chat IC you will need to be invited by the CM.");
     }
 }
