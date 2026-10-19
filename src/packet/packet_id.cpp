@@ -61,8 +61,14 @@ void PacketID::handlePacket(AreaData *area, AOClient &client) const
         "y_offset", "expanded_desk_mods", "auth_packet", "custom_blips"};
     client.sendPacket("FL", l_feature_list);
 
-    if (ConfigManager::assetUrl().isValid()) {
-        QByteArray l_asset_url = ConfigManager::assetUrl().toEncoded(QUrl::EncodeSpaces);
-        client.sendPacket("ASS", {l_asset_url});
+    // Every configured asset URL is sent as its own argument. Clients that only
+    // support a single repository read the first one and ignore the rest.
+    const QList<QUrl> l_asset_urls = ConfigManager::assetUrls();
+    if (!l_asset_urls.isEmpty()) {
+        QStringList l_asset_args;
+        for (const QUrl &l_url : l_asset_urls) {
+            l_asset_args.append(QString::fromUtf8(l_url.toEncoded(QUrl::EncodeSpaces)));
+        }
+        client.sendPacket("ASS", l_asset_args);
     }
 }
