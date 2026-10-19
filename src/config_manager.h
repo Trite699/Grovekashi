@@ -255,6 +255,11 @@ class ConfigManager
     static QUrl assetUrl();
 
     /**
+     * @brief Returns every valid URL listed in asset_url (comma-separated), in config order. Empty if none are set.
+     */
+    static QList<QUrl> assetUrls();
+
+    /**
      * @brief Returns the maximum number of sides dice can have..
      */
     static int diceMaxValue();
