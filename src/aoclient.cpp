@@ -81,7 +81,7 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"gethubs", {{ACLRole::NONE}, 0, &AOClient::cmdGetHubs}},
     {"hubplay", {{ACLRole::CM}, 1, &AOClient::cmdHubPlay}},
     {"shufflemusic", {{ACLRole::NONE}, 0, &AOClient::cmdShuffleMusic}},
-    {"soren", {{ACLRole::KICK}, 0, &AOClient::cmdSoren}},
+    {"logan", {{ACLRole::KICK}, 0, &AOClient::cmdLogan}},
     {"timer", {{ACLRole::CM}, 0, &AOClient::cmdTimer}},
     {"area", {{ACLRole::NONE}, 1, &AOClient::cmdArea}},
     {"play", {{ACLRole::NONE}, 1, &AOClient::cmdPlay}},
