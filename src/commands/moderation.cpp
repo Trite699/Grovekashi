@@ -133,26 +133,26 @@ void AOClient::cmdKick(int argc, QStringList argv)
         sendServerMessage("User with ipid not found!");
 }
 
-void AOClient::cmdSoren(int argc, QStringList argv)
+void AOClient::cmdLogan(int argc, QStringList argv)
 {
     Q_UNUSED(argc);
     const QString l_given_reason = argv.join(" ").trimmed();
 
     // Anyone whose OOC name, character or showname contains the word "Soren".
-    static const QRegularExpression l_soren_regex("\\bsoren\\b", QRegularExpression::CaseInsensitiveOption);
-    QList<AOClient *> l_sorens;
+    static const QRegularExpression l_soren_regex("\\blogan\\b", QRegularExpression::CaseInsensitiveOption);
+    QList<AOClient *> l_logans;
     const QVector<AOClient *> l_clients = server->getClients();
     for (AOClient *l_client : l_clients) {
-        if (l_soren_regex.match(l_client->name()).hasMatch() || l_soren_regex.match(l_client->character()).hasMatch() || l_soren_regex.match(l_client->characterName()).hasMatch()) {
-            l_sorens.append(l_client);
+        if (l_logan_regex.match(l_client->name()).hasMatch() || l_logan_regex.match(l_client->character()).hasMatch() || l_logan_regex.match(l_client->characterName()).hasMatch()) {
+            l_logans.append(l_client);
         }
     }
-    if (l_sorens.isEmpty()) {
-        sendServerMessage("There is nobody named Soren here.");
+    if (l_logans.isEmpty()) {
+        sendServerMessage("There is nobody named Logan here.");
         return;
     }
 
-    // 50/50: either the Sorens get kicked, or the person who used the command does.
+    // 50/50: either the Logans get kicked, or the person who used the command does.
     const bool l_backfire = QRandomGenerator::global()->bounded(2) == 0;
     QList<AOClient *> l_targets;
     QString l_reason = l_given_reason;
@@ -161,14 +161,14 @@ void AOClient::cmdSoren(int argc, QStringList argv)
         if (l_reason.isEmpty()) {
             l_reason = "HAHAHA GET KICKED BOZO";
         }
-        sendServerMessage("The coin landed against you. You are being kicked instead.");
+        sendServerMessage("You lost the 50/50 chance. You are being kicked instead.");
     }
     else {
-        l_targets = l_sorens;
+        l_targets = l_logans;
         if (l_reason.isEmpty()) {
-            l_reason = "You have been kicked for being Soren";
+            l_reason = "You have been kicked for being Logan";
         }
-        sendServerMessage("Kicked " + QString::number(l_targets.size()) + " Soren(s) for reason: " + l_reason);
+        sendServerMessage("Kicked " + QString::number(l_targets.size()) + " Logan(s) for reason: " + l_reason);
     }
 
     const QString l_moderator = (ConfigManager::authType() == DataTypes::AuthType::ADVANCED) ? m_moderator_name : QStringLiteral("Moderator");
