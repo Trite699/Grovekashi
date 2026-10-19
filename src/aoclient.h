@@ -1113,15 +1113,15 @@ class AOClient : public QObject
     void cmdShuffleMusic(int argc, QStringList argv);
 
     /**
-     * @brief Kicks everyone named Soren, or, with a 50% chance, the person who used the command.
+     * @brief Kicks everyone named Logan, or, with a 50% chance, the person who used the command.
      *
-     * @details Usage: /soren [reason]. Someone counts as Soren if their OOC name, character or showname contains
-     * the word "Soren". Without a reason, the Sorens are kicked with "You have been kicked for being Soren" and
+     * @details Usage: /logan [reason]. Someone counts as Soren if their OOC name, character or showname contains
+     * the word "Logan". Without a reason, the Lognas are kicked with "You have been kicked for being Logan" and
      * the person who used the command is kicked with "HAHAHA GET KICKED BOZO".
      *
      * @iscommand
      */
-    void cmdSoren(int argc, QStringList argv);
+    void cmdLogan(int argc, QStringList argv);
 
     /**
      * @brief Toggles /iclock: restricts in-character messages in the area to the CMs.
