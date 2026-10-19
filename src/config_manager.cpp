@@ -731,14 +731,39 @@ QString ConfigManager::whitelistGatewayUrl()
 
 QUrl ConfigManager::assetUrl()
 {
-    QByteArray l_url = m_settings->value("Options/asset_url", "").toString().toUtf8();
-    if (QUrl(l_url).isValid()) {
-        return QUrl(l_url);
+    // Kept for callers that only want a single URL: the first valid entry.
+    const QList<QUrl> l_urls = assetUrls();
+    return l_urls.isEmpty() ? QUrl() : l_urls.first();
+}
+
+QList<QUrl> ConfigManager::assetUrls()
+{
+    // QSettings parses a comma-separated value as a QStringList, so handle both forms.
+    QStringList l_raw;
+    const QVariant l_value = m_settings->value("Options/asset_url", "");
+    if (l_value.typeId() == QMetaType::QStringList) {
+        l_raw = l_value.toStringList();
     }
     else {
-        qWarning("asset_url is not a valid url!");
-        return QUrl(NULL);
+        l_raw = l_value.toString().split(",");
     }
+
+    QList<QUrl> l_urls;
+    for (const QString &l_entry : std::as_const(l_raw)) {
+        const QString l_trimmed = l_entry.trimmed();
+        if (l_trimmed.isEmpty()) {
+            continue;
+        }
+        const QUrl l_url(l_trimmed);
+        if (!l_url.isValid()) {
+            qWarning("asset_url entry '%s' is not a valid url, skipping.", qPrintable(l_trimmed));
+            continue;
+        }
+        if (!l_urls.contains(l_url)) {
+            l_urls.append(l_url);
+        }
+    }
+    return l_urls;
 }
 
 int ConfigManager::diceMaxValue()
