@@ -65,4 +65,11 @@ void PacketRD::handlePacket(AreaData *area, AOClient &client) const
     area->addClient(-1, client.clientId());
     client.getServer()->getPlayerStateObserver()->registerClient(&client);
     client.arup(client.ARUPType::PLAYER_COUNT, true); // Tell everyone there is a new player
+
+    // Reconnecting does not lift a banish: put the user straight back into their area.
+    const int l_banished_area = client.getServer()->banishedArea(client.getIpid());
+    if (l_banished_area >= 0 && l_banished_area < client.getServer()->getAreaCount() && l_banished_area != client.areaId()) {
+        client.changeArea(l_banished_area, true);
+        client.sendServerMessage("You are banished to this area and cannot leave it.");
+    }
 }
