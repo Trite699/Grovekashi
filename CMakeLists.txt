@@ -21,6 +21,7 @@ qt_add_executable(akashi
   src/commands/moderation.cpp
   src/commands/music.cpp
   src/commands/roleplay.cpp
+  src/commands/rps.cpp
   src/logger/u_logger.cpp
   src/logger/u_logger.h
   src/logger/writer_full.cpp
