@@ -95,6 +95,7 @@ const QMap<QString, AreaData::Status> AreaData::map_statuses = {
     {"gaming", AreaData::Status::GAMING},
     {"building", AreaData::Status::BUILDING},
     {"starting", AreaData::Status::STARTING},
+    {"jamming", AreaData::Status::JAMMING},
 };
 
 void AreaData::removeClient(int f_charId, int f_userId)
