@@ -75,7 +75,8 @@ class AreaData : public QObject
         RECESS,              //!< The area is currently taking a temporary break.
         GAMING,              //!< The users are playing some gamemode that maybe in or outside of AO.
         BUILDING,            //!< The users are collectively building or improvising an activity.
-        STARTING             //!< The users are ready to begin the activity and are waiting for something.
+        STARTING,            //!< The users are ready to begin the activity and are waiting for something.
+        JAMMING              //!< The users are jamming out (listening to / making music together).
     };
 
     /// Exposes the metadata of the Status enum.
