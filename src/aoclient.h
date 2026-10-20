@@ -699,6 +699,72 @@ class AOClient : public QObject
     int m_current_area;
 
     /**
+     * @brief The possible picks of a Rock Paper Scissors game.
+     */
+    enum class RpsChoice
+    {
+        NONE,
+        ROCK,
+        PAPER,
+        SCISSORS
+    };
+
+    /**
+     * @brief How long, in seconds, a Rock Paper Scissors game waits for the players before it expires.
+     */
+    static constexpr int RPS_TIMEOUT_SECS = 60;
+
+    /**
+     * @brief The user ID of the opponent in the running Rock Paper Scissors game, or -1 if there is none.
+     */
+    int m_rps_opponent = -1;
+
+    /**
+     * @brief What this client picked in the running Rock Paper Scissors game.
+     */
+    RpsChoice m_rps_choice = RpsChoice::NONE;
+
+    /**
+     * @brief Unix time in seconds at which the running Rock Paper Scissors game was started.
+     */
+    qint64 m_rps_started = 0;
+
+    /**
+     * @brief Returns true if this client is in a Rock Paper Scissors game that has not expired.
+     */
+    bool rpsActive() const;
+
+    /**
+     * @brief Ends this client's Rock Paper Scissors game without a result, on this side only.
+     */
+    void rpsReset();
+
+    /**
+     * @brief Turns "rock", "paper", "scissors" or their first letters r, p, s into a pick. RpsChoice::NONE if it is none of those.
+     */
+    static RpsChoice rpsParseChoice(const QString &f_text);
+
+    /**
+     * @brief Records a pick for the running Rock Paper Scissors game and settles it if both players have picked.
+     */
+    void rpsPick(RpsChoice f_choice);
+
+    /**
+     * @brief A name for this client that is used in Rock Paper Scissors messages.
+     */
+    QString rpsDisplayName() const;
+
+    /**
+     * @brief Human readable name of a pick.
+     */
+    static QString rpsChoiceName(RpsChoice f_choice);
+
+    /**
+     * @brief Cancels the Rock Paper Scissors game of this client (and the opponent's side of it), telling the opponent why.
+     */
+    void rpsAbort(const QString &f_reason);
+
+    /**
      * @brief The internal name of the character the client is currently using.
      */
     QString m_current_char;
@@ -1115,13 +1181,45 @@ class AOClient : public QObject
     /**
      * @brief Kicks everyone named Logan, or, with a 50% chance, the person who used the command.
      *
-     * @details Usage: /logan [reason]. Someone counts as Soren if their OOC name, character or showname contains
-     * the word "Logan". Without a reason, the Lognas are kicked with "You have been kicked for being Logan" and
+     * @details Usage: /logan [reason]. Someone counts as Logan if their OOC name, character or showname contains
+     * the word "Logan". Without a reason, the Logans are kicked with "You have been kicked for being Logan" and
      * the person who used the command is kicked with "HAHAHA GET KICKED BOZO".
      *
      * @iscommand
      */
     void cmdLogan(int argc, QStringList argv);
+
+    /**
+     * @brief Banishes a user to an area, they can not leave it until they are unbanished.
+     *
+     * @details Usage: /banish <user id> <area id>. The user is moved to the area right away (even if it is locked)
+     * and every attempt of theirs to change area is refused. The banish is tied to their IPID, so reconnecting
+     * does not get them out of it. It does not survive a server restart.
+     *
+     * @iscommand
+     */
+    void cmdBanish(int argc, QStringList argv);
+
+    /**
+     * @brief Lifts a banish, so the user can move between areas again.
+     *
+     * @details Usage: /unbanish <user id>. The user stays in the area they were banished to.
+     *
+     * @iscommand
+     */
+    void cmdUnbanish(int argc, QStringList argv);
+
+    /**
+     * @brief Plays Rock Paper Scissors. This is the only command of the game.
+     *
+     * @details Usage: /rps <user id> challenges a user. Both players are told to "Select your action", which they
+     * do with /rps <choice>, where the choice is rock, paper or scissors, or just r, p or s. Nothing is revealed
+     * until both of them have chosen, then the result is sent to both. An unanswered challenge expires after
+     * RPS_TIMEOUT_SECS seconds. Starting a new challenge replaces the one you had open.
+     *
+     * @iscommand
+     */
+    void cmdRps(int argc, QStringList argv);
 
     /**
      * @brief Toggles /iclock: restricts in-character messages in the area to the CMs.
