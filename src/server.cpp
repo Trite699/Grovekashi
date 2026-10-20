@@ -610,6 +610,21 @@ AOClient *Server::getClientByID(int id)
     return m_clients_ids.value(id);
 }
 
+void Server::banishIpid(const QString &f_ipid, int f_area_id)
+{
+    m_banished_ipids.insert(f_ipid, f_area_id);
+}
+
+bool Server::unbanishIpid(const QString &f_ipid)
+{
+    return m_banished_ipids.remove(f_ipid) > 0;
+}
+
+int Server::banishedArea(const QString &f_ipid) const
+{
+    return m_banished_ipids.value(f_ipid, -1);
+}
+
 int Server::getPlayerCount()
 {
     return m_player_count;
@@ -849,6 +864,18 @@ bool Server::removeDynamicArea(int f_index)
         }
     }
     l_area->deleteLater();
+
+    // Banishes follow the same shift. Anyone banished to the removed area is simply let go.
+    for (auto i_banish = m_banished_ipids.begin(); i_banish != m_banished_ipids.end();) {
+        if (i_banish.value() == f_index) {
+            i_banish = m_banished_ipids.erase(i_banish);
+            continue;
+        }
+        if (i_banish.value() > f_index) {
+            i_banish.value() -= 1;
+        }
+        ++i_banish;
+    }
 
     syncAreaList();
     return true;
