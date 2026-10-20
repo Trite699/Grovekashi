@@ -82,6 +82,9 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"hubplay", {{ACLRole::CM}, 1, &AOClient::cmdHubPlay}},
     {"shufflemusic", {{ACLRole::NONE}, 0, &AOClient::cmdShuffleMusic}},
     {"logan", {{ACLRole::KICK}, 0, &AOClient::cmdLogan}},
+    {"banish", {{ACLRole::KICK}, 2, &AOClient::cmdBanish}},
+    {"unbanish", {{ACLRole::KICK}, 1, &AOClient::cmdUnbanish}},
+    {"rps", {{ACLRole::NONE}, 1, &AOClient::cmdRps}},
     {"timer", {{ACLRole::CM}, 0, &AOClient::cmdTimer}},
     {"area", {{ACLRole::NONE}, 1, &AOClient::cmdArea}},
     {"play", {{ACLRole::NONE}, 1, &AOClient::cmdPlay}},
@@ -189,6 +192,7 @@ void AOClient::clientDisconnected()
 #ifdef NET_DEBUG
     qDebug() << m_remote_ip.toString() << "disconnected";
 #endif
+    rpsAbort(rpsDisplayName() + " left, so your Rock Paper Scissors game was cancelled.");
     if (m_joined) {
         server->getAreaById(areaId())->removeClient(server->getCharID(character()), clientId());
         arup(ARUPType::PLAYER_COUNT, true);
@@ -341,6 +345,13 @@ void AOClient::changeArea(int new_area, bool f_force)
     if (!hasJoined()) {
         sendServerMessage("You must join the server before changing areas.");
         return;
+    }
+    if (!f_force) {
+        const int l_banished_area = server->banishedArea(getIpid());
+        if (l_banished_area >= 0 && l_banished_area != new_area) {
+            sendServerMessage("You have been banished to this area and cannot leave it.");
+            return;
+        }
     }
     if (!f_force && server->getAreaById(new_area)->lockStatus() == AreaData::LockStatus::LOCKED && !server->getAreaById(new_area)->invited().contains(clientId()) && !checkPermission(ACLRole::BYPASS_LOCKS)) {
         sendServerMessage("Area " + server->getAreaName(new_area) + " is locked.");
