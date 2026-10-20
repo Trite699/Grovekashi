@@ -138,8 +138,8 @@ void AOClient::cmdLogan(int argc, QStringList argv)
     Q_UNUSED(argc);
     const QString l_given_reason = argv.join(" ").trimmed();
 
-    // Anyone whose OOC name, character or showname contains the word "Soren".
-    static const QRegularExpression l_soren_regex("\\blogan\\b", QRegularExpression::CaseInsensitiveOption);
+    // Anyone whose OOC name, character or showname contains the word "Logan".
+    static const QRegularExpression l_logan_regex("\\blogan\\b", QRegularExpression::CaseInsensitiveOption);
     QList<AOClient *> l_logans;
     const QVector<AOClient *> l_clients = server->getClients();
     for (AOClient *l_client : l_clients) {
@@ -177,6 +177,78 @@ void AOClient::cmdLogan(int argc, QStringList argv)
         l_target->sendPacket("KK", {l_reason});
         l_target->m_socket->close();
     }
+}
+
+void AOClient::cmdBanish(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    bool l_user_ok = false;
+    const int l_user_id = argv[0].toInt(&l_user_ok);
+    if (!l_user_ok) {
+        sendServerMessage("That does not look like a valid user ID.");
+        return;
+    }
+
+    AOClient *l_target = server->getClientByID(l_user_id);
+    if (l_target == nullptr || !l_target->hasJoined()) {
+        sendServerMessage("No user with that ID found.");
+        return;
+    }
+
+    bool l_area_ok = false;
+    const int l_area_id = argv[1].toInt(&l_area_ok);
+    if (!l_area_ok || l_area_id < 0 || l_area_id >= server->getAreaCount()) {
+        sendServerMessage("That does not look like a valid area ID.");
+        return;
+    }
+
+    // The banish belongs to the IPID, not to the connection. Otherwise a reconnect would be an easy way out.
+    const QString l_ipid = l_target->getIpid();
+    server->banishIpid(l_ipid, l_area_id);
+
+    const QString l_area_name = server->getAreaName(l_area_id);
+    const QList<AOClient *> l_clients = server->getClientsByIpid(l_ipid);
+    for (AOClient *l_client : l_clients) {
+        if (!l_client->hasJoined()) {
+            continue;
+        }
+        if (l_client->areaId() != l_area_id) {
+            l_client->changeArea(l_area_id, true);
+        }
+        l_client->sendServerMessage("You have been banished to area " + l_area_name + ". You cannot leave it until you are unbanished.");
+    }
+
+    sendServerMessage("Banished user " + QString::number(l_user_id) + " to area " + l_area_name + ".");
+}
+
+void AOClient::cmdUnbanish(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    // A banished user may have disconnected, so an IPID is accepted as well when there is no client with that ID.
+    QString l_ipid;
+    bool l_user_ok = false;
+    const int l_user_id = argv[0].toInt(&l_user_ok);
+    AOClient *l_target = l_user_ok ? server->getClientByID(l_user_id) : nullptr;
+    if (l_target != nullptr) {
+        l_ipid = l_target->getIpid();
+    }
+    else {
+        l_ipid = argv[0];
+    }
+
+    if (!server->unbanishIpid(l_ipid)) {
+        sendServerMessage("That user is not banished.");
+        return;
+    }
+
+    const QList<AOClient *> l_clients = server->getClientsByIpid(l_ipid);
+    for (AOClient *l_client : l_clients) {
+        l_client->sendServerMessage("You have been unbanished. You can move between areas again.");
+    }
+
+    sendServerMessage("Unbanished " + (l_target != nullptr ? "user " + QString::number(l_user_id) : "IPID " + l_ipid) + ".");
 }
 
 void AOClient::cmdMods(int argc, QStringList argv)
