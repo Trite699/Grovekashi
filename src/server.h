@@ -136,6 +136,31 @@ class Server : public QObject
     AOClient *getClientByID(int id);
 
     /**
+     * @brief Banishes an IPID to an area. Banished users cannot leave the area until they are unbanished.
+     *
+     * @details The banish is tied to the IPID instead of the client, so reconnecting does not lift it.
+     * It is kept in memory only and is forgotten when the server restarts.
+     *
+     * @param f_ipid The IPID to banish.
+     * @param f_area_id The ID of the area the user is confined to.
+     */
+    void banishIpid(const QString &f_ipid, int f_area_id);
+
+    /**
+     * @brief Lifts the banish of an IPID.
+     *
+     * @param f_ipid The IPID to unbanish.
+     *
+     * @return True if the IPID was banished, false if there was nothing to lift.
+     */
+    bool unbanishIpid(const QString &f_ipid);
+
+    /**
+     * @brief Returns the area ID an IPID is banished to, or -1 if the IPID is not banished.
+     */
+    int banishedArea(const QString &f_ipid) const;
+
+    /**
      * @brief Returns the overall player count in the server.
      *
      * @return The overall player count in the server.
@@ -559,6 +584,11 @@ class Server : public QObject
      * @brief Collection of all clients with their userID as key.
      */
     QHash<int, AOClient *> m_clients_ids;
+
+    /**
+     * @brief Banished IPIDs, with the ID of the area they are confined to as value.
+     */
+    QHash<QString, int> m_banished_ipids;
 
     /**
      * @brief The Discord bot that handles whitelist requests. A nullptr if the whitelist is not active.
