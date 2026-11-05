@@ -21,6 +21,11 @@ PacketInfo PacketZZ::getPacketInfo() const
 
 void PacketZZ::handlePacket(AreaData *area, AOClient &client) const
 {
+    if (!client.m_whitelisted) {
+        client.sendServerMessage("You must be whitelisted to send a modcall!");
+        return;
+    }
+
     if (!client.getServer()->modcallCooldownAllows(client.m_ipid)) {
         client.sendServerMessage("You have already called a moderator! Please wait for them to arrive or privately message you. "
                                  "You can send a modcall once every " +
