@@ -134,6 +134,7 @@ const QMap<QString, AOClient::CommandInfo> AOClient::COMMANDS{
     {"toggle_join_lockdown", {{ACLRole::SUPER}, 0, &AOClient::cmdToggleJoinLockdown}},
     {"toggle_whitelist", {{ACLRole::NONE}, 0, &AOClient::cmdToggleWhitelist}},
     {"twl", {{ACLRole::NONE}, 0, &AOClient::cmdToggleWhitelist}},
+    {"kick_unwhitelisted", {{ACLRole::KICK}, 0, &AOClient::cmdKickUnwhitelisted}},
     {"disemvowel", {{ACLRole::MUTE}, 1, &AOClient::cmdDisemvowel}},
     {"undisemvowel", {{ACLRole::MUTE}, 1, &AOClient::cmdUnDisemvowel}},
     {"shake", {{ACLRole::MUTE}, 1, &AOClient::cmdShake}},
