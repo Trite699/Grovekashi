@@ -733,6 +733,37 @@ void AOClient::cmdToggleWhitelist(int argc, QStringList argv)
     sendServerMessage(QString("Whitelist is now %1.").arg(server->whitelistEnforced() ? "enabled" : "disabled"));
 }
 
+void AOClient::cmdKickUnwhitelisted(int argc, QStringList argv)
+{
+    Q_UNUSED(argc);
+
+    if (!server->whitelistActive()) {
+        sendServerMessage("Whitelist is not enabled on this server!");
+        return;
+    }
+
+    QString l_reason = argv.join(" ").trimmed();
+    if (l_reason.isEmpty()) {
+        l_reason = "You have not been whitelisted.";
+    }
+
+    const QString l_moderator = ConfigManager::authType() == DataTypes::AuthType::ADVANCED ? m_moderator_name : "Moderator";
+    int l_kick_counter = 0;
+
+    const QVector<AOClient *> l_clients = server->getClients();
+    for (AOClient *l_client : l_clients) {
+        if (l_client == this || l_client->m_whitelisted) {
+            continue;
+        }
+        l_client->sendPacket("KK", {l_reason});
+        l_client->m_socket->close();
+        emit logKick(l_moderator, l_client->m_ipid, l_reason);
+        l_kick_counter++;
+    }
+
+    sendServerMessage("Kicked " + QString::number(l_kick_counter) + " non-whitelisted client(s).");
+}
+
 void AOClient::cmdForceImmediate(int argc, QStringList argv)
 {
     Q_UNUSED(argc);
