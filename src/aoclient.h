@@ -1599,6 +1599,8 @@ class AOClient : public QObject
      */
     void cmdToggleWhitelist(int argc, QStringList argv);
 
+    void cmdKickUnwhitelisted(int argc, QStringList argv);
+
     /**
      * @brief Lists the last five bans made on the server.
      *
