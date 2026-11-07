@@ -310,6 +310,23 @@ class Server : public QObject
     int hubMainAreaId(const QString &f_hub) const;
 
     /**
+     * @brief Returns the IDs of the areas that make up the area list of a client that stands in the given area.
+     *
+     * @details Hubs are separate area lists. A client outside of every hub sees all areas that are not part of a hub,
+     * plus the entry area of each hub (the first area from areas.ini with that hub= value). A client inside a hub sees
+     * the first area of the server (to leave the hub), the entry area of its hub and all other areas of that hub, and
+     * nothing of the main list or of other hubs. The order of the returned IDs is the order of the list sent to the client.
+     *
+     * @param f_current_area The ID of the area the client is in.
+     */
+    QList<int> visibleAreaIds(int f_current_area) const;
+
+    /**
+     * @brief Returns the names of the areas returned by visibleAreaIds(), in the same order.
+     */
+    QStringList visibleAreaNames(int f_current_area) const;
+
+    /**
      * @brief Creates a new area in a hub while the server runs.
      *
      * @param f_name The name of the new area. It has to be valid and unused, see AOClient::cmdAddArea.
@@ -353,6 +370,24 @@ class Server : public QObject
      * @brief Switches whitelist enforcement on or off at runtime. Has no effect without a configured whitelist bot.
      */
     void setWhitelistEnforced(bool f_enforced);
+
+    /**
+     * @brief Returns true while the kick-unwhitelisted switch is on, see AOClient::cmdKickUnwhitelisted.
+     */
+    bool kickUnwhitelisted() const;
+
+    /**
+     * @brief Returns the kick reason that is shown to clients that are turned away while the switch is on.
+     */
+    QString kickUnwhitelistedReason() const;
+
+    /**
+     * @brief Turns the kick-unwhitelisted switch on or off. Resets to off when the server restarts.
+     *
+     * @param f_enabled The new state of the switch.
+     * @param f_reason The reason shown to kicked clients. Ignored when the switch is turned off.
+     */
+    void setKickUnwhitelisted(bool f_enabled, const QString &f_reason = QString());
 
     /**
      * @brief Returns the whitelist bot, or a nullptr if the whitelist is not active.
@@ -599,6 +634,16 @@ class Server : public QObject
      * @brief Runtime switch for whitelist enforcement, toggled with /toggle_whitelist. Resets to true on restart.
      */
     bool m_whitelist_enforced = true;
+
+    /**
+     * @brief Switch for /kick_unwhitelisted. While true, unwhitelisted clients are kicked when they connect. Resets to false on restart.
+     */
+    bool m_kick_unwhitelisted = false;
+
+    /**
+     * @brief The reason shown to clients that are kicked because m_kick_unwhitelisted is on.
+     */
+    QString m_kick_unwhitelisted_reason;
     QHash<QString, qint64> m_join_times;
     bool m_join_cooldown_enabled = true;
     int m_join_cooldown_seconds = 120;
