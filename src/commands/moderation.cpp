@@ -737,6 +737,13 @@ void AOClient::cmdKickUnwhitelisted(int argc, QStringList argv)
 {
     Q_UNUSED(argc);
 
+    // The command is a switch: the first use turns it on, the next use turns it off.
+    if (server->kickUnwhitelisted()) {
+        server->setKickUnwhitelisted(false);
+        sendServerMessage("Kicking of unwhitelisted clients is now off.");
+        return;
+    }
+
     if (!server->whitelistActive()) {
         sendServerMessage("Whitelist is not enabled on this server!");
         return;
@@ -747,6 +754,9 @@ void AOClient::cmdKickUnwhitelisted(int argc, QStringList argv)
         l_reason = "You have not been whitelisted.";
     }
 
+    server->setKickUnwhitelisted(true, l_reason);
+
+    // Kick everybody who is connected and not whitelisted right now. Clients that connect later are turned away in Server::handleConnection.
     const QString l_moderator = ConfigManager::authType() == DataTypes::AuthType::ADVANCED ? m_moderator_name : "Moderator";
     int l_kick_counter = 0;
 
@@ -761,7 +771,7 @@ void AOClient::cmdKickUnwhitelisted(int argc, QStringList argv)
         l_kick_counter++;
     }
 
-    sendServerMessage("Kicked " + QString::number(l_kick_counter) + " non-whitelisted client(s).");
+    sendServerMessage("Kicking of unwhitelisted clients is now on. Kicked " + QString::number(l_kick_counter) + " non-whitelisted client(s). Use the command again to turn it off.");
 }
 
 void AOClient::cmdForceImmediate(int argc, QStringList argv)
