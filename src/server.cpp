@@ -405,6 +405,15 @@ void Server::clientConnected()
         return;
     }
 
+    // While /kick_unwhitelisted is switched on, clients that are not whitelisted are turned away right when they connect.
+    if (kickUnwhitelisted() && whitelistActive() && !client->m_whitelisted) {
+        l_socket->write(PacketFactory::createPacket("BD", {m_kick_unwhitelisted_reason}));
+        client->deleteLater();
+        l_socket->close(QWebSocketProtocol::CloseCodeNormal);
+        markIDFree(user_id);
+        return;
+    }
+
     // The new client is accepted, so make room by kicking the oldest connections from this IP.
     for (AOClient *l_old_client : qAsConst(l_clients_to_kick)) {
         l_old_client->sendPacket("KK", {"Kicked: too many connections from your IP. Your oldest connection was closed."});
@@ -705,6 +714,22 @@ void Server::setWhitelistEnforced(bool f_enforced)
     }
 }
 
+bool Server::kickUnwhitelisted() const
+{
+    return m_kick_unwhitelisted;
+}
+
+QString Server::kickUnwhitelistedReason() const
+{
+    return m_kick_unwhitelisted_reason;
+}
+
+void Server::setKickUnwhitelisted(bool f_enabled, const QString &f_reason)
+{
+    m_kick_unwhitelisted = f_enabled;
+    m_kick_unwhitelisted_reason = f_enabled ? f_reason : QString();
+}
+
 DiscordWhitelist *Server::whitelistBot() const
 {
     return m_whitelist_bot;
@@ -893,12 +918,63 @@ void Server::renameArea(int f_index, const QString &f_name)
 
 void Server::syncAreaList()
 {
+    // Every client gets the list of the area list (main list or hub) it is currently in.
     for (AOClient *l_client : qAsConst(m_clients)) {
         if (l_client && l_client->hasJoined()) {
-            l_client->sendPacket("FA", m_area_names);
+            l_client->sendPacket("FA", visibleAreaNames(l_client->areaId()));
             l_client->fullArup();
         }
     }
+}
+
+QList<int> Server::visibleAreaIds(int f_current_area) const
+{
+    QList<int> l_ids;
+    QString l_hub;
+    if (f_current_area >= 0 && f_current_area < m_areas.length()) {
+        l_hub = m_areas.at(f_current_area)->hub();
+    }
+
+    if (l_hub.isEmpty()) {
+        // Main list: everything outside of hubs and one entry per hub.
+        QSet<QString> l_entries_found;
+        for (int i = 0; i < m_areas.length(); i++) {
+            const QString l_area_hub = m_areas.at(i)->hub();
+            if (l_area_hub.isEmpty()) {
+                l_ids.append(i);
+                continue;
+            }
+            const QString l_key = l_area_hub.toLower();
+            if (!m_areas.at(i)->isDynamic() && !l_entries_found.contains(l_key)) {
+                l_entries_found.insert(l_key);
+                l_ids.append(i);
+            }
+        }
+        return l_ids;
+    }
+
+    // Hub list: first area of the server to leave, then the hub itself.
+    l_ids.append(0);
+    const int l_entry = hubMainAreaId(l_hub);
+    if (l_entry > 0) {
+        l_ids.append(l_entry);
+    }
+    for (int i = 1; i < m_areas.length(); i++) {
+        if (i != l_entry && m_areas.at(i)->hub().compare(l_hub, Qt::CaseInsensitive) == 0) {
+            l_ids.append(i);
+        }
+    }
+    return l_ids;
+}
+
+QStringList Server::visibleAreaNames(int f_current_area) const
+{
+    QStringList l_names;
+    const QList<int> l_ids = visibleAreaIds(f_current_area);
+    for (int l_id : l_ids) {
+        l_names.append(m_area_names.at(l_id));
+    }
+    return l_names;
 }
 
 QList<int> Server::getHubAreaIds(const QString &f_hub) const
