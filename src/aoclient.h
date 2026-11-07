@@ -988,6 +988,13 @@ class AOClient : public QObject
     bool isHubCM(const QString &f_hub) const;
 
     /**
+     * @brief Returns true if the area is part of the area list (main list or hub) the client currently sees.
+     *
+     * @details Moderators with the BYPASS_LOCKS permission can go to any area.
+     */
+    bool canSeeArea(int f_area_id) const;
+
+    /**
      * @brief Checks the hub rules (connections and move time) for a move to another area.
      *
      * @details Tells the client why if the move is not allowed. Moderators and CMs are exempt.
@@ -1599,6 +1606,15 @@ class AOClient : public QObject
      */
     void cmdToggleWhitelist(int argc, QStringList argv);
 
+    /**
+     * @brief Switch that kicks everybody who is not whitelisted, and keeps doing so for new connections.
+     *
+     * @details Usage: /kick_unwhitelisted [reason]. The first use turns the switch on: all unwhitelisted clients that are
+     * connected are kicked and unwhitelisted clients that connect afterwards are turned away. Using the command again turns
+     * it off. Needs the whitelist to be enabled. Resets to off when the server restarts.
+     *
+     * @iscommand
+     */
     void cmdKickUnwhitelisted(int argc, QStringList argv);
 
     /**
