@@ -21,5 +21,5 @@ void PacketRM::handlePacket(AreaData *area, AOClient &client) const
 {
     Q_UNUSED(area)
 
-    client.sendPacket("SM", client.getServer()->getAreaNames() + client.getServer()->getMusicList());
+    client.sendPacket("SM", client.getServer()->visibleAreaNames(client.areaId()) + client.getServer()->getMusicList());
 }
