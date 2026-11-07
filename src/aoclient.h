@@ -365,6 +365,13 @@ class AOClient : public QObject
     bool checkPermission(ACLRole::Permission f_permission) const;
 
     /**
+     * @brief Returns true if the area is part of the area list (main list or hub) the client currently sees.
+     *
+     * @details Moderators with the BYPASS_LOCKS permission can go to any area.
+     */
+    bool canSeeArea(int f_area_id) const;
+
+    /**
      * @brief Returns if the client is a spectator.
      *
      * @return True if the client is a spectator, false otherwise.
@@ -986,13 +993,6 @@ class AOClient : public QObject
      * @brief Returns true if the client is a CM of at least one area of the given hub.
      */
     bool isHubCM(const QString &f_hub) const;
-
-    /**
-     * @brief Returns true if the area is part of the area list (main list or hub) the client currently sees.
-     *
-     * @details Moderators with the BYPASS_LOCKS permission can go to any area.
-     */
-    bool canSeeArea(int f_area_id) const;
 
     /**
      * @brief Checks the hub rules (connections and move time) for a move to another area.
