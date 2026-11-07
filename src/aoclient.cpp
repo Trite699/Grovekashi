@@ -307,6 +307,14 @@ bool AOClient::isHubCM(const QString &f_hub) const
     return false;
 }
 
+bool AOClient::canSeeArea(int f_area_id) const
+{
+    if (checkPermission(ACLRole::BYPASS_LOCKS)) {
+        return true;
+    }
+    return server->visibleAreaIds(areaId()).contains(f_area_id);
+}
+
 bool AOClient::hubMoveAllowed(AreaData *f_destination)
 {
     AreaData *l_current = server->getAreaById(areaId());
@@ -366,6 +374,7 @@ void AOClient::changeArea(int new_area, bool f_force)
         server->getAreaById(areaId())->changeCharacter(server->getCharID(character()), -1);
         server->updateCharsTaken(server->getAreaById(areaId()));
     }
+    const QList<int> l_old_visible_areas = server->visibleAreaIds(areaId());
     server->getAreaById(areaId())->removeClient(m_char_id, clientId());
     bool l_character_taken = false;
     if (server->getAreaById(new_area)->charactersTaken().contains(server->getCharID(character()))) {
@@ -375,6 +384,12 @@ void AOClient::changeArea(int new_area, bool f_force)
     }
     server->getAreaById(new_area)->addClient(m_char_id, clientId());
     setAreaId(new_area);
+
+    // Going into a hub, out of it or to another hub switches the area list of the client.
+    if (server->visibleAreaIds(new_area) != l_old_visible_areas) {
+        sendPacket("FA", server->visibleAreaNames(new_area));
+        fullArup();
+    }
     arup(ARUPType::PLAYER_COUNT, true);
     sendEvidenceList(server->getAreaById(new_area));
     sendPacket("HP", {"1", QString::number(server->getAreaById(new_area)->defHP())});
@@ -489,14 +504,36 @@ void AOClient::handleCommand(QString command, int argc, QStringList argv)
 
 void AOClient::arup(ARUPType type, bool broadcast)
 {
+    if (broadcast) {
+        // Every client has its own area list (main list or hub), so everybody gets an ARUP built for their list.
+        const QVector<AOClient *> l_clients = server->getClients();
+        for (AOClient *l_client : l_clients) {
+            if (l_client && l_client->m_socket) {
+                l_client->arup(type, false);
+            }
+        }
+        return;
+    }
+
     QStringList l_arup_data;
     l_arup_data.append(QString::number(type));
-    const QVector<AreaData *> l_areas = server->getAreas();
-    for (AreaData *l_area : l_areas) {
+    const QList<int> l_visible_ids = server->visibleAreaIds(areaId());
+    const bool l_in_hub = !server->getAreaById(areaId())->hub().isEmpty();
+    for (int l_area_id : l_visible_ids) {
+        AreaData *l_area = server->getAreaById(l_area_id);
         switch (type) {
         case ARUPType::PLAYER_COUNT:
         {
-            l_arup_data.append(QString::number(l_area->playerCount()));
+            int l_players = l_area->playerCount();
+            if (!l_in_hub && !l_area->hub().isEmpty()) {
+                // The entry of a hub in the main list shows everybody that is in the hub.
+                l_players = 0;
+                const QList<int> l_hub_area_ids = server->getHubAreaIds(l_area->hub());
+                for (int l_hub_area_id : l_hub_area_ids) {
+                    l_players += server->getAreaById(l_hub_area_id)->playerCount();
+                }
+            }
+            l_arup_data.append(QString::number(l_players));
             break;
         }
         case ARUPType::STATUS:
@@ -533,12 +570,7 @@ void AOClient::arup(ARUPType type, bool broadcast)
         }
         }
     }
-    if (broadcast) {
-        server->broadcast(PacketFactory::createPacket("ARUP", l_arup_data));
-    }
-    else {
-        sendPacket("ARUP", l_arup_data);
-    }
+    sendPacket("ARUP", l_arup_data);
 }
 
 void AOClient::fullArup()
