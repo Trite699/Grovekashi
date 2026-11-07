@@ -35,7 +35,7 @@ void PacketRD::handlePacket(AreaData *area, AOClient &client) const
     client.sendEvidenceList(area);
     client.sendPacket("HP", {"1", QString::number(area->defHP())});
     client.sendPacket("HP", {"2", QString::number(area->proHP())});
-    client.sendPacket("FA", client.getServer()->getAreaNames());
+    client.sendPacket("FA", client.getServer()->visibleAreaNames(client.areaId()));
     // Here lies OPPASS, the genius of FanatSors who send the modpass to everyone in plain text.
     client.sendPacket("DONE");
     client.sendPacket("BN", {area->background(), area->side()});
