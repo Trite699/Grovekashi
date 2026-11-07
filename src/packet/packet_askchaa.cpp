@@ -24,5 +24,5 @@ void PacketAskchaa::handlePacket(AreaData *area, AOClient &client) const
     // Evidence isn't loaded during this part anymore
     // As a result, we can always send "0" for evidence length
     // Client only cares about what it gets from LE
-    client.sendPacket("SI", {QString::number(client.getServer()->getCharacterCount()), "0", QString::number(client.getServer()->getAreaCount() + client.getServer()->getMusicList().length())});
+    client.sendPacket("SI", {QString::number(client.getServer()->getCharacterCount()), "0", QString::number(client.getServer()->visibleAreaIds(client.areaId()).length() + client.getServer()->getMusicList().length())});
 }
