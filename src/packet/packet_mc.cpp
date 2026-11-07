@@ -109,6 +109,11 @@ void PacketMC::handlePacket(AreaData *area, AOClient &client) const
     for (int i = 0; i < client.getServer()->getAreaCount(); i++) {
         QString l_area = client.getServer()->getAreaName(i);
         if (l_area == l_argument) {
+            // Only areas of the list the client sees can be picked, hubs are separate lists.
+            if (!client.canSeeArea(i)) {
+                client.sendServerMessage("That area is not part of your area list.");
+                break;
+            }
             client.changeArea(i);
             break;
         }
