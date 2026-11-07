@@ -376,7 +376,13 @@ void AOClient::cmdGetAreas(int argc, QStringList argv)
 
     QStringList l_entries;
     l_entries.append("\n== Currently Online: " + QString::number(server->getPlayerCount()) + " ==");
+    // Hubs are separate area lists: only moderators see the areas of every list here (everybody can use /gethubs).
+    const QList<int> l_visible = server->visibleAreaIds(areaId());
+    const bool l_sees_everything = checkPermission(ACLRole::BYPASS_LOCKS);
     for (int i = 0; i < server->getAreaCount(); i++) {
+        if (!l_sees_everything && !l_visible.contains(i)) {
+            continue;
+        }
         if (server->getAreaById(i)->playerCount() > 0) {
             QStringList l_cur_area_lines = buildAreaList(i);
             l_entries.append(l_cur_area_lines);
@@ -402,6 +408,10 @@ void AOClient::cmdArea(int argc, QStringList argv)
     int l_new_area = argv[0].toInt(&ok);
     if (!ok || l_new_area >= server->getAreaCount() || l_new_area < 0) {
         sendServerMessage("That does not look like a valid area ID.");
+        return;
+    }
+    if (!canSeeArea(l_new_area)) {
+        sendServerMessage("That area is not part of your area list.");
         return;
     }
     changeArea(l_new_area);
