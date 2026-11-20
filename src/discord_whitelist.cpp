@@ -167,6 +167,7 @@ void DiscordWhitelist::requestWhitelist(AOClient *f_client, const QString &f_dis
     auto l_fail = [l_client](const QString &f_message) {
         if (l_client) {
             l_client->m_whitelist_requested = false; // lets the player correct a typo without rejoining
+            l_client->m_discord_name.clear();        // a failed claim must not stay attached to the client
             l_client->sendServerMessage(f_message);
         }
     };
@@ -187,9 +188,13 @@ void DiscordWhitelist::requestWhitelist(AOClient *f_client, const QString &f_dis
                 return;
             }
 
+            if (!l_client) {
+                return; // the requester disconnected while the lookup was running
+            }
+
             const QString l_custom_id = "akashi_wl_" + QString::number(++m_prompt_counter);
             const int l_timeout = ConfigManager::whitelistPromptTimeout();
-            QJsonObject l_embed = embed("Waiting to whitelist...", l_character + " (<@" + f_member_id + ">) has requested to be whitelisted!\nPlease press the button to confirm this action.");
+            QJsonObject l_embed = embed("Waiting to whitelist...", l_character + " (<@" + f_member_id + ">) has requested to be whitelisted!\nOnly press the button if YOU just typed /whitelist in-game. If you did not, ignore this message.");
             l_embed["fields"] = QJsonArray{QJsonObject{
                 {"name", "Prompt Ends In:"},
                 {"value", "<t:" + QString::number(QDateTime::currentSecsSinceEpoch() + l_timeout) + ":R>"},
@@ -211,6 +216,8 @@ void DiscordWhitelist::requestWhitelist(AOClient *f_client, const QString &f_dis
             Prompt *l_prompt = new Prompt;
             l_prompt->member_id = f_member_id;
             l_prompt->discord_name = l_name;
+            l_prompt->client = l_client;
+            l_prompt->ipid = l_client->getIpid();
             l_prompt->timer = new QTimer(this);
             l_prompt->timer->setSingleShot(true);
             connect(l_prompt->timer, &QTimer::timeout, this, [this, l_custom_id]() { expirePrompt(l_custom_id); });
@@ -272,19 +279,16 @@ void DiscordWhitelist::expirePrompt(const QString &f_custom_id)
     delete l_prompt;
 }
 
-int DiscordWhitelist::whitelistClients(const QString &f_discord_name)
+bool DiscordWhitelist::whitelistClient(const Prompt *f_prompt)
 {
-    int l_count = 0;
-    const QVector<AOClient *> l_clients = m_server->getClients();
-    for (AOClient *l_client : l_clients) {
-        if (l_client->m_discord_name == f_discord_name && !l_client->m_whitelisted && l_client->m_whitelist_requested) {
-            l_client->m_whitelisted = true;
-            l_client->sendServerMessage("Whitelisted as " + f_discord_name + ".");
-            m_server->addTrustedUser(f_discord_name, l_client->getIpid());
-            l_count++;
-        }
+    AOClient *l_client = f_prompt->client.data();
+    if (!l_client || l_client->m_whitelisted || !l_client->m_whitelist_requested || l_client->m_discord_name != f_prompt->discord_name || l_client->getIpid() != f_prompt->ipid) {
+        return false;
     }
-    return l_count;
+    l_client->m_whitelisted = true;
+    l_client->sendServerMessage("Whitelisted as " + f_prompt->discord_name + ".");
+    m_server->addTrustedUser(f_prompt->discord_name, l_client->getIpid());
+    return true;
 }
 
 void DiscordWhitelist::handleInteraction(const QJsonObject &f_data)
@@ -309,7 +313,7 @@ void DiscordWhitelist::handleInteraction(const QJsonObject &f_data)
         return;
     }
 
-    if (whitelistClients(l_prompt->discord_name) == 0) {
+    if (!whitelistClient(l_prompt)) {
         respondToInteraction(f_data, 4, QJsonObject{{"content", "Your client is not found in " + l_server_name + "!"}, {"flags", 64}}, 15);
         return;
     }
