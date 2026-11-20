@@ -87,6 +87,8 @@ class DiscordWhitelist : public QObject
         QString member_id;
         QString discord_name;
         QString message_id;
+        QPointer<AOClient> client; ///< The one client this prompt was issued for. Only this client may be whitelisted by it.
+        QString ipid;              ///< IPID of that client at the time the prompt was issued.
         QTimer *timer = nullptr;
         bool done = false;
     };
@@ -108,11 +110,15 @@ class DiscordWhitelist : public QObject
     void expirePrompt(const QString &f_custom_id);
 
     /**
-     * @brief Whitelists every client that asked to be whitelisted under the given Discord name.
+     * @brief Whitelists the client a prompt was issued for, and only that client.
      *
-     * @return The number of clients that were whitelisted.
+     * @details Never matches clients by Discord name: anybody can type any Discord name into /whitelist, so a
+     * name is a claim, not proof of identity. Pressing a button must only ever vouch for the client the
+     * prompt was created for.
+     *
+     * @return True if the client was whitelisted.
      */
-    int whitelistClients(const QString &f_discord_name);
+    bool whitelistClient(const Prompt *f_prompt);
 
     QJsonObject embed(const QString &f_title, const QString &f_description) const;
 
