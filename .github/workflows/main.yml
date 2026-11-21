@@ -23,7 +23,7 @@ jobs:
       with:
         clang-format-version: '16'
         check-path: '.'
-        
+
   build-linux:
     needs: formatting-check
     # The type of runner that the job will run on
@@ -33,7 +33,7 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
-      
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -45,26 +45,34 @@ jobs:
           cache: true
           cache-key-prefix: install-qt-action
           modules: 'qtwebsockets'
-          
+
       # Runs a set of commands using the runners shell
       - name: Build
         run: |
           cd $GITHUB_WORKSPACE
           cmake .
           cmake --build . --config Release
-          
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: akashi-linux
           path: bin/
-  
+
   build-windows:
     needs: formatting-check
     runs-on: windows-latest
-    
+
     steps:
       - uses: actions/checkout@v4
+
+      # Raise the virtual memory limit so cc1plus doesn't hit the commit limit
+      - name: Configure pagefile
+        uses: al-cheb/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 8GB
+          maximum-size: 16GB
+          disk-root: "C:"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -84,7 +92,10 @@ jobs:
         run: |
           cd $Env:GITHUB_WORKSPACE
           cmake . -G "MinGW Makefiles" -D CMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release --parallel
+          # Limit parallel compiles to avoid "cc1plus.exe: out of memory"
+          cmake --build . --config Release --parallel 2
+          # Stop right here if the build failed (PowerShell won't do this on its own)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           windeployqt bin\akashi.exe --release --no-translations --no-compiler-runtime --no-opengl-sw
           Copy-Item "$Env:IQTA_TOOLS\mingw1310_64\bin\libgcc_s_seh-1.dll" bin\
           Copy-Item "$Env:IQTA_TOOLS\mingw1310_64\bin\libstdc++-6.dll" bin\
